@@ -257,6 +257,63 @@ function getAlternativeMarker(index) {
   return index < 26 ? String.fromCharCode(98 + index) : String(index + 2);
 }
 
+function findInvalidDiscount(items) {
+  for (let itemIndex = 0; itemIndex < items.length; itemIndex += 1) {
+    const item = items[itemIndex];
+    const mainDiscount = Number(item?.discount ?? 0);
+
+    if (!Number.isFinite(mainDiscount) || mainDiscount < 0 || mainDiscount > 100) {
+      return { itemIndex, alternativeIndex: null, value: item?.discount };
+    }
+
+    const alternatives = Array.isArray(item?.alternatives) ? item.alternatives : [];
+    for (let alternativeIndex = 0; alternativeIndex < alternatives.length; alternativeIndex += 1) {
+      const alternativeDiscount = Number(alternatives[alternativeIndex]?.discount ?? 0);
+      if (!Number.isFinite(alternativeDiscount) || alternativeDiscount < 0 || alternativeDiscount > 100) {
+        return {
+          itemIndex,
+          alternativeIndex,
+          value: alternatives[alternativeIndex]?.discount,
+        };
+      }
+    }
+  }
+
+  return null;
+}
+
+function focusInvalidDiscountField({ itemIndex, alternativeIndex }) {
+  const selector = alternativeIndex === null
+    ? `input[data-k="discount"][data-i="${itemIndex}"]`
+    : `input[data-k="altDiscount"][data-i="${itemIndex}"][data-alt="${alternativeIndex}"]`;
+  const input = document.querySelector(selector);
+  const detailsRow = input?.closest("tr.itemDetailsRow");
+  const detailsPanel = input?.closest(".itemDetailsWarranty");
+  const toggle = document.querySelector(`.itemDetailsToggle[data-i="${itemIndex}"]`);
+
+  if (detailsRow) detailsRow.hidden = false;
+  if (detailsPanel) detailsPanel.hidden = false;
+  if (toggle) toggle.setAttribute("aria-expanded", "true");
+  input?.setAttribute("aria-invalid", "true");
+  input?.scrollIntoView({ behavior: "smooth", block: "center" });
+  input?.focus({ preventScroll: true });
+}
+
+function showInvalidDiscountError(invalid, lang) {
+  const itemNumber = invalid.itemIndex + 1;
+  const code = invalid.alternativeIndex === null
+    ? String(itemNumber)
+    : `${itemNumber}${getAlternativeMarker(invalid.alternativeIndex)}`;
+  const value = Number(invalid.value);
+  const valueText = Number.isFinite(value) ? `${value.toLocaleString(getLocale(lang))}%` : String(invalid.value ?? "");
+  const message = lang === "pl"
+    ? `Nie można wygenerować PDF: rabat w pozycji ${code} musi mieścić się w zakresie 0–100% (wpisano ${valueText}).`
+    : `PDF cannot be generated: the discount in item ${code} must be between 0% and 100% (entered ${valueText}).`;
+
+  focusInvalidDiscountField(invalid);
+  showToast(message, { type: "error", ms: 6500 });
+}
+
 function formatSignedMoney(value, lang, currency) {
   const amount = formatMoney(Math.abs(Number(value || 0)), lang, currency);
   const numeric = Number(value || 0);
@@ -688,6 +745,12 @@ export async function generatePdf({ onBefore } = {}) {
       t(lang, "missingData") === "(missing)" ? "Add at least one item." : "Dodaj przynajmniej jedną pozycję.",
       { type: "error", ms: 3500 }
     );
+    return;
+  }
+
+  const invalidDiscount = findInvalidDiscount(store.items);
+  if (invalidDiscount) {
+    showInvalidDiscountError(invalidDiscount, lang);
     return;
   }
 

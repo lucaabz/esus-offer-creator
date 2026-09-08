@@ -146,6 +146,7 @@ function buildAlternativesMarkup(alternatives, itemIdx, currency) {
             step="0.01"
             value="${toNumber(alternative?.discount)}"
           />
+          <span class="itemVariantFieldError">Rabat musi mieścić się w zakresie 0–100%.</span>
         </label>
         <label class="itemVariantPrice">
           <span class="mini">Ilość</span>
@@ -1424,7 +1425,9 @@ export function renderItems({ onTotalsChanged, onStateChanged } = {}) {
         } else if (k === "altQty") {
           nextAlternatives[altIdx].qty = Math.max(1, parseInt(e.target.value || "1", 10) || 1);
         } else if (k === "altDiscount") {
-          nextAlternatives[altIdx].discount = toNumber(e.target.value);
+          const discount = toNumber(e.target.value);
+          nextAlternatives[altIdx].discount = discount;
+          e.target.setAttribute("aria-invalid", discount < 0 || discount > 100 ? "true" : "false");
         } else {
           nextAlternatives[altIdx].net = toNumber(e.target.value);
         }

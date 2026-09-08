@@ -472,7 +472,7 @@
 
       <div class="offers-card">
         <div id="offersListView" class="offers-subview is-active">
-          <div id="offersLoading" class="offers-loading" role="status" aria-live="polite">
+          <div id="offersLoading" class="offers-loading" role="status" aria-live="polite" hidden>
             <span class="offers-loading-spinner" aria-hidden="true"></span>
             <span>Ładowanie ofert...</span>
           </div>
@@ -1224,7 +1224,7 @@
 </div>
   
   
-  <div id="profileModalBackdrop" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:5000;" tabindex="-1";>
+  <div id="profileModalBackdrop" style="position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:5000;" tabindex="-1">
   <div id="profileError" class="modalError" style="display:none;">
     <span class="profileErrorText"></span>
 	<button type="button" class="profileErrorClose" aria-label="Zamknij">×</button>

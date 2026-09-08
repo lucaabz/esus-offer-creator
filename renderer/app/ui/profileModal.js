@@ -47,13 +47,19 @@ function normalizeInitials(v) {
 function show() {
   const bd = el("profileModalBackdrop");
   if (!bd) return;
-  bd.style.display = "block";
+  bd.style.removeProperty("display");
+  bd.classList.add("is-open");
+
+  requestAnimationFrame(() => {
+    el("profileFullName")?.focus();
+  });
 }
 
 function hide() {
   const bd = el("profileModalBackdrop");
   if (!bd) return;
-  bd.style.display = "none";
+  bd.classList.remove("is-open");
+  bd.style.removeProperty("display");
 }
 
 let profileErrorTimer = null;

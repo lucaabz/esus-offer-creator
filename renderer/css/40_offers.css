@@ -2934,6 +2934,19 @@ body.iai-orders-modal-open{
 .itemVariantPrice input{
   width:100%;
 }
+.itemVariantPrice input:invalid{
+  border-color:rgba(255, 92, 92, .9);
+  box-shadow:0 0 0 2px rgba(255, 92, 92, .12);
+}
+.itemVariantFieldError{
+  display:none;
+  color:#ff8f8f;
+  font-size:10px;
+  line-height:1.3;
+}
+.itemVariantPrice input:invalid + .itemVariantFieldError{
+  display:block;
+}
 @media (max-width: 900px){
   .itemVariantFields{
     grid-template-columns:1fr;
