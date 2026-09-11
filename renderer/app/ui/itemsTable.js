@@ -868,18 +868,19 @@ function ensureProductSearchModal() {
 
   if (_productSearchModalSub) {
     _productSearchModalSub.textContent =
-      "Wpisz indeks produktu z IdoSell. Szukamy po indeksie, zeby uniknac wolnego przeszukiwania calego katalogu.";
+      "Wpisz ID IdoSell lub indeks produktu.";
   }
   if (_productSearchModalInput) {
-    _productSearchModalInput.placeholder = "Np. UDM-PRO-MAX";
+    _productSearchModalInput.placeholder = "Np. 94328 lub UDM-PRO-MAX";
   }
   if (_productSearchModalSubmit) {
-    _productSearchModalSubmit.innerHTML = '<i class="fa-solid fa-magnifying-glass"></i> Szukaj po indeksie';
+    _productSearchModalSubmit.innerHTML = '<i class="fa-solid fa-magnifying-glass"></i> Szukaj';
   }
 
   const refreshSubmitState = () => {
     if (!_productSearchModalSubmit || !_productSearchModalInput) return;
-    _productSearchModalSubmit.disabled = String(_productSearchModalInput.value || "").trim().length < 2;
+    const query = String(_productSearchModalInput.value || "").trim();
+    _productSearchModalSubmit.disabled = !/^\d+$/.test(query) && query.length < 2;
   };
 
   const renderResults = (result) => {
@@ -900,6 +901,7 @@ function ensureProductSearchModal() {
     _productSearchModalResults.innerHTML = products.map((product, index) => {
       const title = escapeHtml(product?.name || product?.code || "Produkt bez nazwy");
       const meta = [
+        product?.id ? `ID IdoSell: ${escapeHtml(product.id)}` : "",
         product?.code ? `Kod: ${escapeHtml(product.code)}` : "",
         product?.producer ? `Producent: ${escapeHtml(product.producer)}` : "",
         product?.producerCode ? `Kod producenta: ${escapeHtml(product.producerCode)}` : "",
@@ -948,7 +950,7 @@ function ensureProductSearchModal() {
   const runSearch = async () => {
     if (!_productSearchModalInput || !_productSearchModalStatus || !_productSearchModalSubmit) return;
     const query = String(_productSearchModalInput.value || "").trim();
-    if (query.length < 2) return;
+    if (!/^\d+$/.test(query) && query.length < 2) return;
 
     _productSearchModalSubmit.disabled = true;
     _productSearchModalSpinner?.classList.add("is-active");
@@ -1041,14 +1043,14 @@ function openProductSearchModal(i, { onTotalsChanged, onStateChanged } = {}) {
     `;
   }
   if (_productSearchModalTitle) {
-    _productSearchModalTitle.textContent = `Wyszukaj produkt po indeksie - pozycja ${i + 1}`;
+    _productSearchModalTitle.textContent = `Wyszukaj produkt - pozycja ${i + 1}`;
   }
   if (_productSearchModalInput) {
     _productSearchModalInput.value = "";
-    _productSearchModalInput.placeholder = "Np. UDM-PRO-MAX";
+    _productSearchModalInput.placeholder = "Np. 94328 lub UDM-PRO-MAX";
   }
   if (_productSearchModalStatus) {
-    _productSearchModalStatus.textContent = "Wpisz indeks produktu i kliknij Szukaj.";
+    _productSearchModalStatus.textContent = "Wpisz ID IdoSell lub indeks produktu i kliknij Szukaj.";
   }
   _productSearchModalSpinner?.classList.remove("is-active");
   if (_productSearchModalSubmit) {
@@ -1068,7 +1070,7 @@ function closeProductSearchModal() {
 
 async function quickSearchAndApplyProduct(i, query, buttonEl, { onTotalsChanged, onStateChanged, descInput } = {}) {
   const q = String(query || "").trim();
-  if (!Number.isFinite(i) || i < 0 || q.length < 2 || !buttonEl) return;
+  if (!Number.isFinite(i) || i < 0 || (!/^\d+$/.test(q) && q.length < 2) || !buttonEl) return;
 
   buttonEl.classList.add("is-loading");
   buttonEl.disabled = true;
