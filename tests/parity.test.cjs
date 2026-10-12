@@ -56,6 +56,12 @@ function originalFiles() {
   );
 }
 const original = originalFiles();
+function normalizeCheckout(contents) {
+  const text = contents.toString("utf8");
+  // Windows checkouts can change text line endings. Binary files remain exact.
+  if (contents.includes(0) || !Buffer.from(text, "utf8").equals(contents)) return contents;
+  return Buffer.from(text.replace(/\r\n/g, "\n"), "utf8");
+}
 test("Official validation resources preserve their manifest hashes in Git", () => {
   const crypto = require("node:crypto");
   const manifest = JSON.parse(fs.readFileSync(path.join(appRoot, "invoice/validation/manifest.json")));
@@ -87,7 +93,7 @@ test("Original 1.7.3 files match the upstream Git commit except documented addit
         filename === ".gitignore" ? expected.trimEnd() : expected,
         filename,
       );
-    } else assert.equal(Buffer.compare(before, after), 0, filename);
+    } else assert.equal(Buffer.compare(normalizeCheckout(before), normalizeCheckout(after)), 0, filename);
     checked++;
   }
   assert.ok(checked > 5000);
@@ -141,10 +147,10 @@ test(
     for (const filename of files)
       assert.equal(
         Buffer.compare(
-          fs.readFileSync(path.join(appRoot, filename)),
-          fs.existsSync(archive)
+          normalizeCheckout(fs.readFileSync(path.join(appRoot, filename))),
+          normalizeCheckout(fs.existsSync(archive)
             ? require("@electron/asar").extractFile(archive, filename)
-            : fs.readFileSync(path.join(packaged, filename)),
+            : fs.readFileSync(path.join(packaged, filename))),
         ),
         0,
         filename,
