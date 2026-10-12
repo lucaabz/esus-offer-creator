@@ -3,6 +3,7 @@ const { app, BrowserWindow, ipcMain, dialog, safeStorage, Notification } = requi
 const { spawn } = require("child_process");
 const path = require("path");
 const fs = require("fs");
+require("./invoice-ipc");
 const os = require("os");
 const { autoUpdater } = require("electron-updater");
 const {

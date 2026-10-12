@@ -1,4 +1,7 @@
 const { contextBridge, ipcRenderer } = require("electron");
+contextBridge.exposeInMainWorld("invoiceAPI", {
+  request: (input) => ipcRenderer.invoke("invoice:request", input),
+});
 
 // Minimal, stable API surface for the renderer.
 // Renderer code expects window.esusAPI.*
