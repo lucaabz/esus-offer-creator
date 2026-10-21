@@ -78,7 +78,7 @@ function createSplash() {
     alwaysOnTop: true,
     show: true,
     center: true,
-    backgroundColor: "#0b1020",
+    backgroundColor: "#171b21",
   });
 
   splashWin.loadFile(path.join(__dirname, "renderer", "splash.html"));
@@ -92,7 +92,7 @@ function createWindow() {
     frame: false,
     show: false,
     titleBarStyle: "hidden",
-    backgroundColor: "#0b1220",
+    backgroundColor: "#171b21",
     icon: path.join(__dirname, "renderer", "assets", "favicon.ico"),
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
@@ -3244,6 +3244,10 @@ async function createFreshOfferPayload() {
     ),
     fields: {
       offerDate: todayYMD(),
+      hideOfferDatePdf: false,
+      pdfTemplate: "classic",
+      showDiscountColumnPdf: true,
+      isEstimate: false,
       paymentMethod: "invoice",
       invoiceDays: 14,
       shippingNet: 0,

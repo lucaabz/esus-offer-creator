@@ -5,6 +5,7 @@ import { store, setItems, getItems, addItem, setOffer } from "./state/store.js";
 import { recalcTotalsUI, getTotalsUI } from "./ui/totalsPanel.js";
 
 import { initWindowControls } from "./ui/windowControls.js";
+import { initErpLayout } from "./ui/erpLayout.js";
 import { ensureUserProfile, applyProfileToForm } from "./ui/profileModal.js";
 import { refreshOfferPreview, loadUserInitialsAndSeq, persistInitials } from "./ui/offerNumber.js";
 import { initOffersSubpage } from "./ui/offersPage.js";
@@ -13,6 +14,7 @@ import { initClientSuggestions } from "./ui/clientSuggestions.js";
 import { initSettingsModal } from "./ui/settingsModal.js";
 
 import { clearSavedState, loadStateFromStorage } from "./state/persistence.js";
+import { applyOfferDocumentOptions } from "./state/offerDocumentOptions.js";
 import { generatePdf } from "./export/pdf.js";
 import { initExcelExport } from "./export/excel.js";
 import {
@@ -53,6 +55,8 @@ fetchExchangeRates().then((ex) => {
     recalcTotalsUI?.();
   } catch {}
 });
+
+initErpLayout();
 
 let cameFromMainPage = false;
 let currentOfferId = null; // ID aktualnie otwartej oferty w formularzu
@@ -139,10 +143,10 @@ function showPage(pageId) {
 
   if (actionsMain) actionsMain.style.display = pageId === "mainPage" ? "flex" : "none";
   if (actionsOffers) actionsOffers.style.display = pageId === "offersPage" ? "flex" : "none";
-  if (btnSettings) btnSettings.style.display = pageId === "offersPage" ? "inline-flex" : "none";
+  if (btnSettings) btnSettings.style.display = "inline-flex";
 
   if (headerTitle) {
-    headerTitle.textContent = pageId === "offersPage" ? "Oferty" : "Generator wyceny (PDF)";
+    headerTitle.textContent = pageId === "offersPage" ? "Oferty" : "Edycja oferty";
   }
   if (btnBack) {
     btnBack.style.display =
@@ -150,6 +154,7 @@ function showPage(pageId) {
         ? "inline-flex"
         : "none";
   }
+  if (pageId === "mainPage") window.dispatchEvent(new Event("esus:editorOpened"));
 }
 
 function initOfferSettingsUI() {
@@ -817,6 +822,7 @@ function refreshValidUntilWarning() {
 }
 
 function clearFormFieldsForNewOffer() {
+  applyOfferDocumentOptions();
   const ids = [
     "offerStatus",
     "custName",
@@ -830,6 +836,7 @@ function clearFormFieldsForNewOffer() {
     "shippingNet",
     "shippingNote",
     "estimateDays",
+    "hideOfferDatePdf",
   ];
 
   ids.forEach((id) => {
@@ -913,11 +920,18 @@ async function init() {
 
   if (window.esusAPI) {
     const payload = await bootLastOrCreateNew(deps);
+    applyOfferDocumentOptions(payload?.fields);
     setActiveOffer(payload);
     renderOfferVersionInfo(payload);
     if (el("offerNumberPreview")) el("offerNumberPreview").textContent = payload?.meta?.offerNo || "â€”";
 
     const offersCtl = initOffersSubpage({
+      onBeforeNavigate: async () => {
+        if (document.getElementById("mainPage")?.classList.contains("is-active")) {
+          await commitAndSaveNow({ getItems, getTotals: getTotalsUI });
+          showPage("offersPage");
+        }
+      },
       onBack: () => showPage("mainPage"),
 
       onNewOffer: async () => {
@@ -966,6 +980,7 @@ async function init() {
           else node.value = val ?? "";
         });
         applyInvoiceDaysToFormValue(fields.invoiceDays);
+        applyOfferDocumentOptions(fields);
 
         setItems((p.items || []).map(normalizeItem));
         deps.renderItems();

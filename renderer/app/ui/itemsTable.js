@@ -1172,7 +1172,7 @@ export function renderItems({ onTotalsChanged, onStateChanged } = {}) {
         </div>
 
         <div class="itemRowMetaActions">
-          <span
+          <button type="button"
             class="itemDetailsToggle"
             data-act="toggleWarranty"
             data-i="${idx}"
@@ -1182,7 +1182,7 @@ export function renderItems({ onTotalsChanged, onStateChanged } = {}) {
           >
             <span class="itemDetailsCaret" aria-hidden="true">∨</span>
             <span>Szczegóły pozycji</span>
-          </span>
+          </button>
 
           <button
             type="button"
@@ -1192,7 +1192,7 @@ export function renderItems({ onTotalsChanged, onStateChanged } = {}) {
             title="${hasInternalNote ? "Edytuj notatkę wewnętrzną" : "Dodaj notatkę wewnętrzną"}"
             aria-label="${hasInternalNote ? "Edytuj notatkę wewnętrzną" : "Dodaj notatkę wewnętrzną"}"
           >
-            <span aria-hidden="true">📝</span>
+            <i class="fa-regular fa-note-sticky" aria-hidden="true"></i>
           </button>
         </div>
 
@@ -1299,7 +1299,7 @@ export function renderItems({ onTotalsChanged, onStateChanged } = {}) {
       </td>
 
       <td class="td-actions">
-        <button class="btnTiny danger" title="Usuń" data-del="${idx}">🗑</button>
+        <button class="btnTiny danger" title="Usuń" aria-label="Usuń pozycję ${idx + 1}" data-del="${idx}"><i class="fa-solid fa-trash-can" aria-hidden="true"></i></button>
       </td>
 
       <td class="profitCell">
@@ -1334,6 +1334,28 @@ export function renderItems({ onTotalsChanged, onStateChanged } = {}) {
       detailsPanel.removeAttribute("style");
       variantBlock?.style.removeProperty("flex");
       detailsPanel.insertBefore(warrantyFields, variantBlock || null);
+      const addAlternative = variantBlock?.querySelector('[data-alt-add]');
+      if (addAlternative) {
+        addAlternative.textContent = '+ Dodaj alternatywę';
+        warrantyFields.appendChild(addAlternative);
+      }
+      if (variantBlock) variantBlock.hidden = !alternatives.length;
+      const variantHint = variantBlock?.querySelector('.itemVariantsHint');
+      if (variantHint) variantBlock.appendChild(variantHint);
+      const note = document.createElement('details');
+      note.className = 'itemInlineNote';
+      note.dataset.inlineNote = String(idx);
+      note.innerHTML = `<summary>${hasInternalNote ? 'Notatka wewnętrzna' : '+ Dodaj notatkę wewnętrzną'}</summary><label for="item-internal-note-${idx}">Tylko do użytku wewnętrznego — bez PDF i maila dla klienta.</label><textarea id="item-internal-note-${idx}" rows="2" placeholder="Np. ustalenia z dostawcą, koszt transportu…">${escapeHtml(it.internalNote)}</textarea>`;
+      note.querySelector('textarea').addEventListener('input', (event) => {
+        const internalNote = event.target.value;
+        updateItem(idx, { internalNote });
+        const hasNote = !!internalNote.trim();
+        const indicator = tr.querySelector('.itemNoteBtn');
+        indicator?.classList.toggle('has-note', hasNote);
+        note.querySelector('summary').textContent = hasNote ? 'Notatka wewnętrzna' : '+ Dodaj notatkę wewnętrzną';
+        onStateChanged?.();
+      });
+      detailsPanel.appendChild(note);
       detailsCell.appendChild(detailsPanel);
     }
 
@@ -1563,7 +1585,9 @@ export function renderItems({ onTotalsChanged, onStateChanged } = {}) {
     btn.addEventListener("click", () => {
       const idx = parseInt(btn.getAttribute("data-note"), 10);
       if (!Number.isFinite(idx)) return;
-      openNoteModal(idx, { onTotalsChanged, onStateChanged });
+      setItemDetailsExpanded(idx, true);
+      const note = tbody.querySelector(`[data-inline-note="${idx}"]`);
+      if (note) { note.open = true; note.querySelector('textarea')?.focus(); }
     });
 
     btn.addEventListener("mouseenter", (ev) => {

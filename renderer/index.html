@@ -12,6 +12,8 @@
   <link rel="stylesheet" href="./css/30_components.css" />
   <link rel="stylesheet" href="./css/20_table.css" />
   <link rel="stylesheet" href="./css/40_offers.css" />
+  <link rel="stylesheet" href="./css/50_erp.css" />
+  <link rel="stylesheet" href="./css/60_iai_erp.css" />
 
   <!-- jsPDF + AutoTable -->
 	<script src="./vendor/jspdf.umd.min.js"></script>
@@ -115,10 +117,10 @@
 <div id="mainPage" class="page">
 <main>
 
-  <section class="card">
+  <section class="card" id="offerDetailsSection">
     <h2>Dane do wyceny</h2>
 
-    <div class="card" style="padding:14px; margin-bottom:12px;">
+    <div class="card" id="offerIdentitySection" style="padding:14px; margin-bottom:12px;">
       <div class="offerTopRow">
         <div class="offerTopPrimary">
           <h2 style="margin:0 0 10px;">Numer oferty <span class="badge">auto</span></h2>
@@ -130,9 +132,6 @@
 		  </div>
 		</div>
 
-		<div class="hint">
-		  Numer nadaje program przy tworzeniu nowej oferty. Przy edycji wczytanej oferty numer jest stały.
-		</div>
 
         </div>
         <div class="offerTopStatus">
@@ -148,7 +147,7 @@
     </div>
 
     <div class="split">
-      <div class="card" style="padding:14px;">
+      <div class="card" id="offerCustomerSection" style="padding:14px;">
         <h2 style="margin:0 0 10px;">Dane klienta</h2>
         <div class="fields">
           <div>
@@ -238,7 +237,7 @@
         </div>
 
         <!-- Dane osoby tworzącej ofertę (jak było) -->
-        <div class="card" style="padding:14px;">
+        <div class="card" id="offerCreatorSection" style="padding:14px;">
           <h2 style="margin:0 0 10px;">Dane osoby tworzącej ofertę</h2>
           <div class="fields">
             <div>
@@ -262,10 +261,30 @@
 
     <div class="mutedLine"></div>
 
-    <div class="card" style="padding:14px;">
+    <div class="card" id="offerTermsSection" style="padding:14px;">
       <h2 style="margin:0 0 10px;">Warunki wyceny</h2>
+      <div style="max-width:360px; margin-bottom:16px;">
+        <label for="pdfTemplate">Szablon PDF</label>
+        <select id="pdfTemplate" aria-describedby="pdfTemplateHelp">
+          <option value="classic">Klasyczny (dotychczasowy)</option>
+          <option value="modern">Nowoczesny</option>
+        </select>
+        <div class="mini" id="pdfTemplateHelp">Wybór zapisuje się osobno dla tej oferty.</div>
+      </div>
 
       <div class="offerTermsToggles">
+        <div class="toggleRow offerTermsToggle">
+          <label class="settingsSwitch offerTermsSwitch" for="hideOfferDatePdf">
+            <input id="hideOfferDatePdf" type="checkbox" aria-labelledby="hideOfferDatePdfTitle" aria-describedby="hideOfferDatePdfHelp" />
+            <span class="settingsSwitchTrack" aria-hidden="true">
+              <span class="settingsSwitchThumb"></span>
+            </span>
+          </label>
+          <div>
+            <div class="offerTermsToggleTitle" id="hideOfferDatePdfTitle">Ukryj datę wersji oferty w PDF</div>
+            <div class="mini" id="hideOfferDatePdfHelp">Pomija dopisek „Wersja z dnia”. Termin ważności oferty pozostaje widoczny.</div>
+          </div>
+        </div>
         <div class="toggleRow offerTermsToggle">
           <label class="settingsSwitch offerTermsSwitch" for="showDiscountColumnPdf">
             <input id="showDiscountColumnPdf" type="checkbox" checked />
@@ -350,7 +369,7 @@
     </div>
   </section>
 
-  <section class="card" style="margin-top:16px;">
+  <section class="card" id="offerItemsSection" style="margin-top:16px;">
     <div class="itemsHead">
       <div class="itemsHeadTitle">
         <h2 style="margin:0;">Pozycje oferty</h2>
@@ -370,10 +389,10 @@
           <thead>
             <tr>
               <th style="width:45%;">Opis</th>
-			  <th style="width:14%;">Cena zakupu netto</th>
-              <th style="width:14%;">Cena netto</th>
-              <th style="width:10%;">Rabat %</th>
-              <th style="width:10%;">Ilość</th>
+			  <th style="width:18%;">Cena zakupu netto</th>
+              <th style="width:18%;">Cena netto</th>
+              <th style="width:6%;">Rabat %</th>
+              <th style="width:6%;">Ilość</th>
               <th class="td-actions"></th>
 			  <th style="width:10%;">Profit</th>
             </tr>
@@ -384,7 +403,7 @@
     </div>
 
     <div class="hint">
-      Rabat jest liczony zawsze (wpływa na cenę), a przełącznik wyżej decyduje tylko, czy kolumna rabatu ma być widoczna w PDF.
+      Rabat zawsze wpływa na cenę. Widoczność kolumny rabatu w PDF ustawisz w zakładce „Warunki i dokument”.
     </div>
 
     <div class="totals">
@@ -402,7 +421,7 @@
       </div>
     </div>
   </section>
-  <div class="card" style="margin-top:12px;">
+  <div class="card" id="offerFinanceSection" style="margin-top:12px;">
 	  <div class="sectionHeader">
 		<div class="title">
 		  <h2 style="margin:0;">Zyski i marża <span class="badge">wewnętrzne</span></h2>
@@ -430,31 +449,35 @@
 		  <div class="v" id="sumProfitNet">0,00 zł</div>
 		</div>
 		<div class="box grand">
-		  <div class="k">Marża (zysk / sprzedaż netto)</div>
+		  <div class="k">Marża oferty</div>
 		  <div class="v" id="sumMargin">0,00%</div>
 		</div>
 	  </div>
 
       <div class="financeCharts">
+        <div class="erp-finance-visuals">
+          <section class="erp-finance-chart">
+            <h3>Koszt i zysk pozycji</h3>
+            <div class="erp-chart-legend"><span>■ Koszt</span><span class="finance-profit">■ Zysk</span><span class="finance-loss">■ Strata (część kosztu)</span></div>
+            <div id="financeCostProfitChart"></div>
+          </section>
+          <section class="erp-finance-chart erp-margin-chart">
+            <h3>Marża oferty</h3>
+            <div id="marginGaugeChart"></div>
+            <div class="hint">Zysk netto / sprzedaż netto</div>
+          </section>
+        </div>
         <section class="financeChartCard">
           <div class="financeChartHead">
             <div>
-              <h3>Breakdown koszt vs zysk</h3>
-              <div class="financeChartSub">Wartości per pozycja, liczone wewnętrznie w PLN.</div>
+              <h3>Rentowność pozycji</h3>
+              <div class="financeChartSub">Sprzedaż po rabatach i koszt zakupu przeliczone na PLN.</div>
             </div>
           </div>
           <div id="profitBreakdownChart" class="financeChartCanvas"></div>
         </section>
 
-        <section class="financeChartCard">
-          <div class="financeChartHead">
-            <div>
-              <h3>Gauge marży</h3>
-              <div class="financeChartSub">Bieżący wskaźnik marży dla całej oferty.</div>
-            </div>
-          </div>
-          <div id="marginGaugeChart" class="financeChartCanvas financeChartCanvasGauge"></div>
-        </section>
+
       </div>
 
 	  <div class="hint" style="margin-top:10px;">
@@ -674,7 +697,7 @@
                 <div class="pmReportPanelHead">
                   <div>
                     <h3>Wykonane działania</h3>
-                    <p>Opis tego, co zostało zrobione w wybranym okresie. Możesz używać prostego formatowania BBCode i list.</p>
+                    <p>Opisz wykonane działania. Formatowanie i listy są widoczne podczas pisania.</p>
                   </div>
                 </div>
                 <div class="pmReportBbToolbar" data-target="pmReportDoneText">
@@ -757,6 +780,7 @@
                   <textarea id="pmReportCsvRaw" class="pmReportTextarea pmReportTextarea--compact" placeholder="Wklej tutaj eksport CSV z Subiekta."></textarea>
                 </label>
                 <div id="pmReportSubiektStats" class="pmReportSubiektStats"></div>
+                <section id="pmReportSubiektTrends" class="pmTrends" aria-label="Historia i porównania miesięczne Subiekta"></section>
                 <div class="pmReportSubiektTables">
                   <div class="pmReportMiniTableCard">
                     <div class="pmReportMiniTableTitle">Grupy towarowe</div>
@@ -999,8 +1023,7 @@
   <div class="settingsModalCard">
     <div class="settingsModalHead">
       <div>
-        <h2 class="settingsModalTitle">Ustawienia</h2>
-        <div class="settingsModalSub">Zmień dane osoby wystawiającej oraz zarządzaj danymi aplikacji.</div>
+        <h2 class="settingsModalTitle">Ustawienia aplikacji</h2>
       </div>
       <button type="button" class="secondary settingsModalCloseBtn" id="btnSettingsCloseTop">Zamknij</button>
     </div>
@@ -1147,77 +1170,6 @@
           </div>
         </div>
 
-        <div class="mutedLine"></div>
-
-        <div class="toggleRow settingsIntegrationToggle">
-          <label class="settingsSwitch" for="settingsQuestionsWorkerEnabled">
-            <input id="settingsQuestionsWorkerEnabled" type="checkbox" />
-            <span class="settingsSwitchTrack" aria-hidden="true">
-              <span class="settingsSwitchThumb"></span>
-            </span>
-          </label>
-          <div>
-            <div style="font-weight:700;">Wlacz worker pytan od klientow</div>
-            <div class="mini">Osobny proces w tle sprawdza modul pytan klientow w IdoSell bez uruchamiania glownego okna generatora ofert.</div>
-          </div>
-        </div>
-
-        <div id="settingsQuestionsWorkerSection" class="settingsIntegrationSection">
-          <div class="toggleRow settingsIntegrationToggle">
-            <label class="settingsSwitch" for="settingsQuestionsWorkerNotifications">
-              <input id="settingsQuestionsWorkerNotifications" type="checkbox" checked />
-              <span class="settingsSwitchTrack" aria-hidden="true">
-                <span class="settingsSwitchThumb"></span>
-              </span>
-            </label>
-            <div>
-              <div style="font-weight:700;">Pokazuj powiadomienia</div>
-              <div class="mini">Po wykryciu nowych pytan worker pokaze powiadomienie systemowe Windows.</div>
-            </div>
-          </div>
-
-          <div class="toggleRow settingsIntegrationToggle">
-            <label class="settingsSwitch" for="settingsQuestionsWorkerStartWithSystem">
-              <input id="settingsQuestionsWorkerStartWithSystem" type="checkbox" />
-              <span class="settingsSwitchTrack" aria-hidden="true">
-                <span class="settingsSwitchThumb"></span>
-              </span>
-            </label>
-            <div>
-              <div style="font-weight:700;">Uruchamiaj wraz z systemem</div>
-              <div class="mini">Worker zostanie uruchomiony po zalogowaniu do Windows, nawet bez otwierania generatora ofert.</div>
-            </div>
-          </div>
-
-          <div class="fields settingsIntegrationFields">
-            <div style="grid-column:1/-1;">
-              <label>Interwal sprawdzania (minuty)</label>
-              <input id="settingsQuestionsWorkerInterval" type="number" min="1" max="1440" step="1" placeholder="10" />
-              <div class="mini settingsInlineHint">Domyślnie 10 minut. Ta funkcja jest obecnie zaparkowana.</div>
-            </div>
-          </div>
-
-          <div class="settingsIntegrationStatus" id="settingsQuestionsWorkerStatusBox">
-            <div class="settingsIntegrationStatusTitle">Status workera</div>
-            <div class="settingsIntegrationStatusText" id="settingsQuestionsWorkerStatusText">Worker nie byl jeszcze uruchomiony.</div>
-            <div class="mini" id="settingsQuestionsWorkerStatusMeta">Brak danych diagnostycznych.</div>
-          </div>
-
-          <div class="settingsModalActions settingsModalActionsSplit">
-            <button id="btnSettingsSaveQuestionsWorker" class="secondary">
-              <i class="fa-solid fa-floppy-disk"></i>
-              Zapisz worker
-            </button>
-            <button id="btnSettingsRestartQuestionsWorker" class="secondary">
-              <i class="fa-solid fa-rotate-right"></i>
-              Uruchom ponownie
-            </button>
-            <button id="btnSettingsStopQuestionsWorker" class="danger">
-              <i class="fa-solid fa-stop"></i>
-              Zatrzymaj worker
-            </button>
-          </div>
-        </div>
       </section>
     </div>
   </div>

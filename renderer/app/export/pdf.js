@@ -7,6 +7,7 @@ import { store } from "../state/store.js";
 import { itemNetAfterDiscount } from "../calc/pricing.js";
 import { buildOfferNumber } from "../ui/offerNumber.js";
 import { showToast } from "../ui/toast.js";
+import { renderModernOffer } from "./pdfModern.js";
 
 // ✅ i18n dla PDF
 import {
@@ -825,6 +826,12 @@ export async function generatePdf({ onBefore } = {}) {
   }
 
   // ===== Header layout =====
+  const modern = el("pdfTemplate")?.value === "modern";
+  const offerNoFromUi = (el("offerNumberPreview")?.textContent || "").trim();
+  const offerNo = offerNoFromUi && offerNoFromUi !== "—" ? offerNoFromUi : buildOfferNumber();
+  const versionText = el("hideOfferDatePdf")?.checked ? "" : getOfferVersionTextForPdf(lang);
+  let headerStartForTable;
+  if (!modern) {
   const topY = 10;
   const logoW = 40;
   const logoH = 12;
@@ -854,8 +861,6 @@ export async function generatePdf({ onBefore } = {}) {
   });
 
   // ===== Title block (tighter) =====
-  const offerNoFromUi = (document.getElementById("offerNumberPreview")?.textContent || "").trim();
-  const offerNo = offerNoFromUi && offerNoFromUi !== "—" ? offerNoFromUi : buildOfferNumber();
 
   const docLabel = getDocLabel(lang, isEstimate);
   const titleY = cardBottomY + 4; // ✅ mniejszy odstęp
@@ -882,7 +887,6 @@ export async function generatePdf({ onBefore } = {}) {
     headerBlockBottomY = titleBottomY + 4.2;
   }
 
-  const versionText = getOfferVersionTextForPdf(lang);
   if (versionText) {
     const versionY = afterLogoY - 1.2;
     doc.setFont(fontName, "normal");
@@ -893,7 +897,8 @@ export async function generatePdf({ onBefore } = {}) {
   }
 
   // ✅ mniejszy odstęp do tabeli
-  const headerStartForTable = headerBlockBottomY + (isEstimate ? 7 : 5);
+  headerStartForTable = headerBlockBottomY + (isEstimate ? 7 : 5);
+  }
 
   // ===== Table =====
   const showDiscountCol = !!el("showDiscountColumnPdf").checked;
@@ -978,6 +983,21 @@ export async function generatePdf({ onBefore } = {}) {
   });
 
   const baseTableFont = 9;
+  if (modern) {
+    const sumNet = store.items.reduce((total, item) => total + itemNetAfterDiscount(item) * Math.max(1, parseInt(item.qty || 1, 10)), 0);
+    const shipping = computeShippingValues({ vatRate: VAT_RATE });
+    const sumGross = sumNet * (1 + VAT_RATE);
+    renderModernOffer(doc, {
+      fontName, lang, currency: DOC_CCY, logoData, offerNo, versionText,
+      isEstimate, showDiscountCol, body, customer: formatCustomerBlock(lang),
+      creator: formatCreatorBlock(lang), sumNet, sumVat: sumNet * VAT_RATE,
+      sumGross, shipping, vatLabel: vatCellLabel,
+      currencyNote: buildCurrencyNoteText(lang, DOC_CCY, exchangeMeta, sumGross + shipping.gross),
+      impactRows: buildAlternativeImpactRows(store.items, { lang, currency: DOC_CCY, vatRate: VAT_RATE, baseSumGross: sumGross + shipping.gross }),
+    });
+    doc.save(`${getFilePrefix(lang)}_${offerNo.replaceAll("/", "-")}.pdf`);
+    return;
+  }
   const VAT_COL_INDEX = showDiscountCol ? 4 : 3;
 
   doc.autoTable({
