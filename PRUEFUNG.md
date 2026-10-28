@@ -15,8 +15,8 @@ sidebar/editor changes, IAI-ID lookup, PM reports and exports.
   versions; the shared German design data and fonts remain unchanged.
 - Source parity checks 5,776 files against upstream 2.0.0, explicitly removing only
   the documented German/e-invoice integration adapters before comparison.
-- Node suite: 6 tests passed, 0 failures; the unmatched local package check was
-  explicitly skipped.
+- Node suite after packaging: 7 tests passed, 0 failures, 0 skipped, including
+  the comparison of the actual Windows package against the integration source.
 - Python invoice suite: 47 tests passed.
 - The author's unmodified `scripts/ui-smoke.cjs`: passed, including 24 preserved
   fields, offer workflows, report export, classic/modern PDFs, Excel export and
@@ -32,9 +32,12 @@ expectations: German totals include the shipping line; upstream classic foreign
 output shows goods totals with separate delivery terms, and upstream modern output
 includes delivery in its final amount. The upstream code itself is unchanged.
 
-The existing 1.8.0 installer is not an integration build. Package comparison skips
-an archive whose version differs from the source; no new installer has been built
-or verified for this integration yet. The earlier package results below refer to
+The Windows x64 integration package was built from `a599a70` using the existing
+electron-builder/NSIS workflow with publishing disabled. Packaged Electron
+integration checks passed for PDF import, XRechnung, English ZUGFeRD, offer
+persistence, nine offer PDF cases, sidebar navigation and IdoSell draft handoff.
+The setup executable is intended for manual acceptance; the installation process
+has not been exercised automatically. The earlier package results below refer to
 1.8.0 only. Live shop/PDF comparison remains pending.
 
 ## Earlier 1.8.0 verification (historical)
@@ -107,3 +110,10 @@ Windows setup uses the existing electron-builder/NSIS workflow and contains the
 private invoice resources. Installer binaries, runtimes, node_modules, credentials,
 user settings and sample invoices are excluded from source commits. Component and
 build details are documented in `ARCHITEKTUR.md`.
+
+## Integration test installer
+
+Source commit: a599a70. Windows x64 setup, version 2.0.0.
+SHA256: 92CC52F250F4F9D3EE17D6DCF7C292FCA35FBAF984B7D465BB5E33F7BFD73407
+Local test artifact only; not published as a GitHub release.
+
