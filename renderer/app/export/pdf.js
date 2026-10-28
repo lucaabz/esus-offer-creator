@@ -7,6 +7,9 @@ import { store } from "../state/store.js";
 import { itemNetAfterDiscount } from "../calc/pricing.js";
 import { buildOfferNumber } from "../ui/offerNumber.js";
 import { showToast } from "../ui/toast.js";
+import { getUserSettings } from "../state/userSettings.js";
+import { renderGermanOffer, drawFooter } from "./offer-layout.js";
+import { legacyCompanyColumns, legacyContactLines } from "../config/documentDesign.js";
 
 // ✅ i18n dla PDF
 import {
@@ -193,7 +196,8 @@ function formatCustomerBlock(lang) {
 
   return {
     name,
-    nip: nip ? `NIP: ${nip}` : "",
+    nip: nip ? `${({de:"USt-IdNr.",en:"VAT ID",hu:"Adószám"}[lang] || "NIP")}: ${nip}` : "",
+    taxId: nip,
     addr,
     contact,
   };
@@ -731,7 +735,7 @@ function drawExtraArrangementsCard(doc, {
   return { bottomY: y + cardH, height: cardH };
 }
 
-export async function generatePdf({ onBefore } = {}) {
+async function generateLegacyPdf({ onBefore } = {}) {
   onBefore?.();
 
   const lang = getPdfLang();
@@ -801,7 +805,7 @@ export async function generatePdf({ onBefore } = {}) {
     }
     const estimateLineH = 4.0;
 
-    return companyLines.length * companyLineH + estLinesCount * estimateLineH + 4;
+    return Math.max(44, companyLines.length * companyLineH + estLinesCount * estimateLineH + 4);
   }
 
   function ensureSpace(heightNeeded, currentY) {
@@ -977,11 +981,21 @@ export async function generatePdf({ onBefore } = {}) {
     return [mainRow, ...alternativeRows];
   });
 
+  // Shipping position mirrors the separately entered delivery charge.
+  const deliveryValues = computeShippingValues({vatRate:VAT_RATE});
+  if (deliveryValues.enteredAmount > 0) {
+    const shippingRow=[String(store.items.length+1),({pl:"Koszty wysyłki",en:"Shipping costs",hu:"Szállítási költség"}[lang] || "Versandkosten"),formatMoney(deliveryValues.net,lang,DOC_CCY).replace(/\s?[A-Z]{3}$/i,"").trim()];
+    if(showDiscountCol) shippingRow.push("0%");
+    shippingRow.push(vatCellLabel,formatMoney(deliveryValues.gross,lang,DOC_CCY).replace(/\s?[A-Z]{3}$/i,"").trim(),"1",formatMoney(deliveryValues.gross,lang,DOC_CCY).replace(/\s?[A-Z]{3}$/i,"").trim());
+    body.push(shippingRow);
+  }
+  // End shipping position.
+
   const baseTableFont = 9;
   const VAT_COL_INDEX = showDiscountCol ? 4 : 3;
 
   doc.autoTable({
-	margin: { left: margin, right: margin },  
+	margin: { left: margin, right: margin, bottom: 42 },  
     startY: headerStartForTable,
     head: [head],
     body,
@@ -1020,7 +1034,7 @@ export async function generatePdf({ onBefore } = {}) {
   });
 
   // ===== ESUS Summary footer =====
-  const sumNet = store.items.reduce(
+  const sumNet = deliveryValues.net + store.items.reduce(
     (acc, it) => acc + itemNetAfterDiscount(it) * Math.max(1, parseInt(it.qty || 1, 10)),
     0
   );
@@ -1116,7 +1130,7 @@ export async function generatePdf({ onBefore } = {}) {
 
     doc.autoTable({
       startY: impactTableY,
-      margin: { left: tableX, right: pageW - tableX - tableW },
+      margin: { left: tableX, right: pageW - tableX - tableW, bottom: 42 },
       tableWidth: tableW,
       head: [[
         pdfSafeText(String(t(lang, "thLp") || "Lp")),
@@ -1253,79 +1267,82 @@ export async function generatePdf({ onBefore } = {}) {
   }
 
   // ===== Footer =====
-  const footerMargin = margin;
-
-  doc.setFont(fontName, "normal");
-  doc.setFontSize(7.5);
-  doc.setTextColor(110);
-
-  const footerOffset = 6;
-  const footerLineH = 3.6;
-  const blankGapH = 3;
-
-  let footerY = pageH - footerMargin + footerOffset;
-
-  let footerLines = [];
-  let lineHeights = [];
-
-  if ((lang || "pl").toLowerCase() === "pl") {
-    const companyFooter =
-      "ESUS IT Spółka z o. o., ul. Somosierry 30A, 71-181 Szczecin. " +
-      "Sąd Rejonowy dla miasta Szczecina, VII Wydział Gospodarczy Krajowego Rejestru Sądowego, " +
-      "KRS: 0001012470; VAT No / NIP: PL8522690002; REGON: 524134686; " +
-      "Kapitał zakładowy 5 000 zł.";
-
-    const companyLines = doc.splitTextToSize(companyFooter, pageW - footerMargin * 2);
-    footerLines = companyLines;
-    lineHeights = companyLines.map(() => footerLineH);
-  } else {
-    const lines = getCompanyFooterLines(lang) || [];
-    footerLines = lines.map((s) => String(s ?? ""));
-    lineHeights = footerLines.map((s) => (s.trim() ? footerLineH : blankGapH));
-  }
-
-  let estimateLines = [];
+  // Shared three-column footer; retain the original foreign company identity.
   if (isEstimate) {
-    doc.setFontSize(8);
-    estimateLines = doc.splitTextToSize(t(lang, "estimateDisclaimer"), pageW - footerMargin * 2);
-    doc.setFontSize(7.5);
+    doc.setFont(fontName,"normal");doc.setFontSize(8);
+    const lines=doc.splitTextToSize(t(lang,"estimateDisclaimer"),pageW-margin*2);
+    const moved=ensureSpace(lines.length*4+4,ty);
+    const y=moved ? margin+20 : ty+4;
+    doc.text(lines,margin,y);
   }
-
-  const companyH = lineHeights.reduce((a, b) => a + b, 0);
-  const estimateH = isEstimate ? estimateLines.length * 4 : 0;
-  const totalFooterH = companyH + estimateH;
-
-  const dividerY = footerY - totalFooterH - 6;
-  doc.setDrawColor(220, 228, 238);
-  doc.setLineWidth(0.4);
-  doc.line(margin, dividerY, pageW - margin, dividerY);
-
-  for (let i = footerLines.length - 1; i >= 0; i--) {
-    const line = footerLines[i];
-    if (!String(line).trim()) {
-      footerY -= blankGapH;
-      continue;
-    }
-    doc.text(String(line), pageW / 2, footerY, { align: "center" });
-    footerY -= footerLineH;
-  }
-
-  if (isEstimate) {
-    doc.setFontSize(8);
-    doc.setTextColor(100);
-
-    for (let i = estimateLines.length - 1; i >= 0; i--) {
-      footerY -= 4;
-      doc.text(estimateLines[i], pageW / 2, footerY, { align: "center" });
-    }
-
-    doc.setFontSize(7.5);
-    doc.setTextColor(110);
-  }
+  const footerSettings=await getUserSettings();
+  drawFooter(doc,legacyCompanyColumns(getCompanyFooterLines(lang),legacyContactLines(footerSettings.profile,lang)),fontName);
 
   doc.setTextColor(0);
   drawPageOverlays(doc, { fontName, lang, pageW, pageH, margin });
 
   const prefix = getFilePrefix(lang);
   doc.save(`${prefix}_${offerNo.replaceAll("/", "-")}.pdf`);
+}
+
+// The new document family is introduced in German first. Legacy languages remain intact.
+export async function generatePdf(options = {}) {
+  if (getPdfLang() !== "de") return generateLegacyPdf(options);
+  options.onBefore?.();
+  if (!store.items.length) {
+    showToast(t("de", "missingData"), { type: "error", ms: 3500 });
+    return;
+  }
+  const invalid = findInvalidDiscount(store.items);
+  if (invalid) {
+    showInvalidDiscountError(invalid, "de");
+    return;
+  }
+  const value = (id) => (document.getElementById(id)?.value || "").trim();
+  const currency = getDocCurrency();
+  const vat = getVatFromUI();
+  const rows = store.items.flatMap((item, index) => {
+    const quantity = Math.max(1, parseInt(item.qty || 1, 10));
+    const alternatives = getAlternativeParts(item, "de", currency);
+    const position = String(index + 1);
+    const description = [item.desc || "-", getWarrantyParts(item, "de")?.text].filter(Boolean).join("\n");
+    return [{ position: alternatives.length ? `${position}a` : position,
+      description: alternatives.length ? `${t("de", "primaryOption")} ${position}a: ${description}` : description,
+      quantity, net: itemNetAfterDiscount(item), discount: toNumber(item.discount), alternative: false },
+      ...alternatives.map((alternative) => ({ position: position + alternative.marker,
+        description: `${t("de", "variantsImpactVariant")} ${position + alternative.marker}: ${alternative.desc}`,
+        quantity: alternative.qty, net: itemNetAfterDiscount(alternative),
+        discount: alternative.discount, alternative: true }))];
+  });
+  const shipping = computeShippingValues({ vatRate: vat.rate });
+  if (shipping.enteredAmount > 0) rows.push({position:String(store.items.length+1),description:"Versandkosten",quantity:1,net:shipping.net,discount:0,alternative:false});
+  const net = rows.filter((row) => !row.alternative).reduce((sum, row) => sum + row.net * row.quantity, 0);
+  const isEstimate = !!document.getElementById("isEstimate")?.checked;
+  const previewNumber = document.getElementById("offerNumberPreview")?.textContent.trim();
+  const number = previewNumber && previewNumber !== "—" ? previewNumber : buildOfferNumber();
+  const now = new Date();
+  const localDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  const leadTime = value("estimateDays");
+  let logo = null;
+  try { logo = await fetchAsDataURL(LOGO_URL_B); } catch (error) { console.error(error); }
+  return renderGermanOffer({
+    logo, number,
+    title: getDocLabel("de", isEstimate), date: formatDate(localDate, "de"),
+    validUntil: value("validUntil") ? formatDate(value("validUntil"), "de") : "",
+    leadTime: /^\d+(?:\s*[-–]\s*\d+)?$/.test(leadTime) ? `${leadTime} ${t("de", "businessDays")}` : leadTime,
+    customer: formatCustomerBlock("de"), creator: value("creatorName"),
+    creatorContact: [value("creatorEmail"), value("creatorPhone")].filter(Boolean).join(" | "),
+    subtitle: value("creatorNotes"), extra: value("termsExtra"),
+    payment: `${labelNoColon("de", "payment")}: ${formatPaymentText("de", value("paymentMethod") || "prepay", value("invoiceDays") || "30").replace(/\((\d+)\)\s*$/, "($1 Tage)")}`,
+    shipping: `${labelNoColon("de", "delivery")}: ${shipping.gross === 0 ? t("de", "deliverySellerCost") : `${formatMoney(shipping.net, "de", currency)} netto / ${formatMoney(shipping.gross, "de", currency)} brutto`}`,
+    rows, net, tax: net * vat.rate, gross: net * (1 + vat.rate),
+    vatLabel: `USt. ${vatLabelI18n("de", vat)}`,
+    money: (amount) => formatMoney(amount, "de", currency),
+    showDiscount: !!document.getElementById("showDiscountColumnPdf")?.checked,
+    alternativeImpact: buildAlternativeImpactRows(store.items, { lang: "de", currency, vatRate: vat.rate, baseSumGross: net * (1 + vat.rate) }),
+    alternativeTitle: t("de", "variantsImpactTitle"),
+    alternativeHead: ["Pos.", t("de", "variantsImpactVariant"), t("de", "variantsImpactPrice"), t("de", "variantsImpactDelta"), t("de", "variantsImpactNewGross")],
+    estimateDisclaimer: isEstimate ? t("de", "estimateDisclaimer") : "",
+    filename: `${getFilePrefix("de")}_${number.replaceAll("/", "-")}.pdf`,
+  });
 }
