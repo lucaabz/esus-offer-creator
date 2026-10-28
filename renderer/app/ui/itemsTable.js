@@ -868,18 +868,19 @@ function ensureProductSearchModal() {
 
   if (_productSearchModalSub) {
     _productSearchModalSub.textContent =
-      "Wpisz indeks produktu z IdoSell. Szukamy po indeksie, zeby uniknac wolnego przeszukiwania calego katalogu.";
+      "Wpisz ID IdoSell lub indeks produktu.";
   }
   if (_productSearchModalInput) {
-    _productSearchModalInput.placeholder = "Np. UDM-PRO-MAX";
+    _productSearchModalInput.placeholder = "Np. 94328 lub UDM-PRO-MAX";
   }
   if (_productSearchModalSubmit) {
-    _productSearchModalSubmit.innerHTML = '<i class="fa-solid fa-magnifying-glass"></i> Szukaj po indeksie';
+    _productSearchModalSubmit.innerHTML = '<i class="fa-solid fa-magnifying-glass"></i> Szukaj';
   }
 
   const refreshSubmitState = () => {
     if (!_productSearchModalSubmit || !_productSearchModalInput) return;
-    _productSearchModalSubmit.disabled = String(_productSearchModalInput.value || "").trim().length < 2;
+    const query = String(_productSearchModalInput.value || "").trim();
+    _productSearchModalSubmit.disabled = !/^\d+$/.test(query) && query.length < 2;
   };
 
   const renderResults = (result) => {
@@ -900,6 +901,7 @@ function ensureProductSearchModal() {
     _productSearchModalResults.innerHTML = products.map((product, index) => {
       const title = escapeHtml(product?.name || product?.code || "Produkt bez nazwy");
       const meta = [
+        product?.id ? `ID IdoSell: ${escapeHtml(product.id)}` : "",
         product?.code ? `Kod: ${escapeHtml(product.code)}` : "",
         product?.producer ? `Producent: ${escapeHtml(product.producer)}` : "",
         product?.producerCode ? `Kod producenta: ${escapeHtml(product.producerCode)}` : "",
@@ -948,7 +950,7 @@ function ensureProductSearchModal() {
   const runSearch = async () => {
     if (!_productSearchModalInput || !_productSearchModalStatus || !_productSearchModalSubmit) return;
     const query = String(_productSearchModalInput.value || "").trim();
-    if (query.length < 2) return;
+    if (!/^\d+$/.test(query) && query.length < 2) return;
 
     _productSearchModalSubmit.disabled = true;
     _productSearchModalSpinner?.classList.add("is-active");
@@ -1041,14 +1043,14 @@ function openProductSearchModal(i, { onTotalsChanged, onStateChanged } = {}) {
     `;
   }
   if (_productSearchModalTitle) {
-    _productSearchModalTitle.textContent = `Wyszukaj produkt po indeksie - pozycja ${i + 1}`;
+    _productSearchModalTitle.textContent = `Wyszukaj produkt - pozycja ${i + 1}`;
   }
   if (_productSearchModalInput) {
     _productSearchModalInput.value = "";
-    _productSearchModalInput.placeholder = "Np. UDM-PRO-MAX";
+    _productSearchModalInput.placeholder = "Np. 94328 lub UDM-PRO-MAX";
   }
   if (_productSearchModalStatus) {
-    _productSearchModalStatus.textContent = "Wpisz indeks produktu i kliknij Szukaj.";
+    _productSearchModalStatus.textContent = "Wpisz ID IdoSell lub indeks produktu i kliknij Szukaj.";
   }
   _productSearchModalSpinner?.classList.remove("is-active");
   if (_productSearchModalSubmit) {
@@ -1068,7 +1070,7 @@ function closeProductSearchModal() {
 
 async function quickSearchAndApplyProduct(i, query, buttonEl, { onTotalsChanged, onStateChanged, descInput } = {}) {
   const q = String(query || "").trim();
-  if (!Number.isFinite(i) || i < 0 || q.length < 2 || !buttonEl) return;
+  if (!Number.isFinite(i) || i < 0 || (!/^\d+$/.test(q) && q.length < 2) || !buttonEl) return;
 
   buttonEl.classList.add("is-loading");
   buttonEl.disabled = true;
@@ -1170,7 +1172,7 @@ export function renderItems({ onTotalsChanged, onStateChanged } = {}) {
         </div>
 
         <div class="itemRowMetaActions">
-          <span
+          <button type="button"
             class="itemDetailsToggle"
             data-act="toggleWarranty"
             data-i="${idx}"
@@ -1180,7 +1182,7 @@ export function renderItems({ onTotalsChanged, onStateChanged } = {}) {
           >
             <span class="itemDetailsCaret" aria-hidden="true">∨</span>
             <span>Szczegóły pozycji</span>
-          </span>
+          </button>
 
           <button
             type="button"
@@ -1190,7 +1192,7 @@ export function renderItems({ onTotalsChanged, onStateChanged } = {}) {
             title="${hasInternalNote ? "Edytuj notatkę wewnętrzną" : "Dodaj notatkę wewnętrzną"}"
             aria-label="${hasInternalNote ? "Edytuj notatkę wewnętrzną" : "Dodaj notatkę wewnętrzną"}"
           >
-            <span aria-hidden="true">📝</span>
+            <i class="fa-regular fa-note-sticky" aria-hidden="true"></i>
           </button>
         </div>
 
@@ -1297,7 +1299,7 @@ export function renderItems({ onTotalsChanged, onStateChanged } = {}) {
       </td>
 
       <td class="td-actions">
-        <button class="btnTiny danger" title="Usuń" data-del="${idx}">🗑</button>
+        <button class="btnTiny danger" title="Usuń" aria-label="Usuń pozycję ${idx + 1}" data-del="${idx}"><i class="fa-solid fa-trash-can" aria-hidden="true"></i></button>
       </td>
 
       <td class="profitCell">
@@ -1332,6 +1334,28 @@ export function renderItems({ onTotalsChanged, onStateChanged } = {}) {
       detailsPanel.removeAttribute("style");
       variantBlock?.style.removeProperty("flex");
       detailsPanel.insertBefore(warrantyFields, variantBlock || null);
+      const addAlternative = variantBlock?.querySelector('[data-alt-add]');
+      if (addAlternative) {
+        addAlternative.textContent = '+ Dodaj alternatywę';
+        warrantyFields.appendChild(addAlternative);
+      }
+      if (variantBlock) variantBlock.hidden = !alternatives.length;
+      const variantHint = variantBlock?.querySelector('.itemVariantsHint');
+      if (variantHint) variantBlock.appendChild(variantHint);
+      const note = document.createElement('details');
+      note.className = 'itemInlineNote';
+      note.dataset.inlineNote = String(idx);
+      note.innerHTML = `<summary>${hasInternalNote ? 'Notatka wewnętrzna' : '+ Dodaj notatkę wewnętrzną'}</summary><label for="item-internal-note-${idx}">Tylko do użytku wewnętrznego — bez PDF i maila dla klienta.</label><textarea id="item-internal-note-${idx}" rows="2" placeholder="Np. ustalenia z dostawcą, koszt transportu…">${escapeHtml(it.internalNote)}</textarea>`;
+      note.querySelector('textarea').addEventListener('input', (event) => {
+        const internalNote = event.target.value;
+        updateItem(idx, { internalNote });
+        const hasNote = !!internalNote.trim();
+        const indicator = tr.querySelector('.itemNoteBtn');
+        indicator?.classList.toggle('has-note', hasNote);
+        note.querySelector('summary').textContent = hasNote ? 'Notatka wewnętrzna' : '+ Dodaj notatkę wewnętrzną';
+        onStateChanged?.();
+      });
+      detailsPanel.appendChild(note);
       detailsCell.appendChild(detailsPanel);
     }
 
@@ -1561,7 +1585,9 @@ export function renderItems({ onTotalsChanged, onStateChanged } = {}) {
     btn.addEventListener("click", () => {
       const idx = parseInt(btn.getAttribute("data-note"), 10);
       if (!Number.isFinite(idx)) return;
-      openNoteModal(idx, { onTotalsChanged, onStateChanged });
+      setItemDetailsExpanded(idx, true);
+      const note = tbody.querySelector(`[data-inline-note="${idx}"]`);
+      if (note) { note.open = true; note.querySelector('textarea')?.focus(); }
     });
 
     btn.addEventListener("mouseenter", (ev) => {

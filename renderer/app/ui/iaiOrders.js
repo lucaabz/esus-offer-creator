@@ -2,8 +2,7 @@ import { escapeHtml, money } from "../utils/format.js";
 import { getUserSettings, setUserSettings } from "../state/userSettings.js";
 import { getCompanyFooterLines } from "../i18n/pdfI18n.js";
 import { showToast } from "./toast.js";
-import { legacyCompanyColumns, legacyContactLines } from "../config/documentDesign.js";
-import { buildBusinessDocumentHtml, documentFieldsMarkup, buildFooterMarkup } from "../export/document-layout.js";
+import { buildBusinessDocumentHtml, documentFieldsMarkup } from "../export/document-layout.js";
 
 const CLOSED_STATUSES = new Set([
   "joined",
@@ -1114,11 +1113,33 @@ function buildDocumentFooterColumns(lang, settings = null) {
   const normalizedLang = normalizeIaiOrdersLang(lang);
   const footerLines = getCompanyFooterLines(normalizedLang).filter(Boolean);
   const profile = settings?.profile || {};
-  return legacyCompanyColumns(footerLines,legacyContactLines(profile,normalizedLang));
+  const website = {
+    pl: "www.esus-it.pl",
+    de: "www.esus-it.de",
+    en: "www.esus-it.com",
+  }[normalizedLang];
+  const contactLines = [
+    String(profile?.fullName || "").trim(),
+    String(profile?.phone || "").trim() ? `Tel: ${String(profile.phone).trim()}` : "",
+    String(profile?.email || "").trim() ? `E-Mail: ${String(profile.email).trim()}` : "",
+    `Web: ${website}`,
+  ].filter(Boolean);
+
+  const left = footerLines.slice(0, Math.max(1, Math.ceil(footerLines.length / 2)));
+  const right = footerLines.slice(left.length);
+  return [left, contactLines, right.length ? right : ["ESUS IT"]];
 }
 
 function buildDocumentFooterMarkup(lang, settings = null) {
-  return buildFooterMarkup(buildDocumentFooterColumns(lang,settings));
+  return buildDocumentFooterColumns(lang, settings)
+    .map(
+      (column) => `
+        <div class="footer-col">
+          ${column.map((line) => `<div>${escapeHtml(line)}</div>`).join("")}
+        </div>
+      `
+    )
+    .join("");
 }
 
 function buildProductSerialKey(product, index = 0) {
@@ -1182,7 +1203,7 @@ function buildWzHtml(order, lang = IAI_ORDERS_DEFAULT_LANG) {
         <tr>
           <td>${index + 1}</td>
           <td>
-            <strong>${escapeHtml(productDocumentName(product, lang))}</strong>
+            <strong>${escapeHtml(pickProductName(product))}</strong>
             <div class="muted">${escapeHtml(pickProductCode(product))}</div>
           </td>
           <td>${escapeHtml(pickProductVariant(product))}</td>
@@ -1199,7 +1220,6 @@ function buildWzHtml(order, lang = IAI_ORDERS_DEFAULT_LANG) {
 <html lang="pl">
 <head>
   <meta charset="utf-8" />
-  <meta name="esus-document-style" content="unified" />
   <title>WZ ${escapeHtml(summary.orderId)}</title>
   <style>
     body{font-family:Arial,sans-serif;margin:28px;color:#111827}
@@ -1217,9 +1237,6 @@ function buildWzHtml(order, lang = IAI_ORDERS_DEFAULT_LANG) {
     .summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:20px}
     .toolbar{display:flex;justify-content:flex-end;gap:8px;margin-bottom:18px}
     .toolbar button{padding:10px 14px;border:1px solid #cbd5e1;border-radius:10px;background:#111827;color:#fff;font-weight:700;cursor:pointer}
-    @page{size:A4;margin:10mm 0 42mm 0}
-    @media print{.native-pdf-export body{margin-top:2mm}}
-    .native-pdf-export .footer,.native-pdf-export .footer-accent{display:none!important}
     @media print {.toolbar{display:none} body{margin:12mm}}
   </style>
 </head>
@@ -1318,7 +1335,7 @@ function buildWzHtmlLocalized(order, lang = IAI_ORDERS_DEFAULT_LANG, settings = 
         <tr>
           <td>${index + 1}</td>
           <td>
-            <strong>${escapeHtml(productDocumentName(product, lang))}</strong>
+            <strong>${escapeHtml(pickProductName(product))}</strong>
             <div class="muted">${escapeHtml(pickProductCode(product))}</div>
           </td>
           <td>${escapeHtml(pickProductVariant(product))}</td>
@@ -1336,7 +1353,6 @@ function buildWzHtmlLocalized(order, lang = IAI_ORDERS_DEFAULT_LANG, settings = 
 <html lang="${escapeHtml(normalizeIaiOrdersLang(lang))}">
 <head>
   <meta charset="utf-8" />
-  <meta name="esus-document-style" content="unified" />
   <title>${escapeHtml(t(lang, "wzShort"))} ${escapeHtml(summary.orderId)}</title>
   <style>
     :root{--brand:#007fc5;--brand-soft:#eaf5fc;--text:#111827;--muted:#6b7280;--line:#d4dce6}
@@ -1369,12 +1385,9 @@ function buildWzHtmlLocalized(order, lang = IAI_ORDERS_DEFAULT_LANG, settings = 
     .summary-row.total{border-bottom:none;color:var(--brand);font-size:16px;font-weight:700;padding-top:14px}
     .toolbar{display:flex;justify-content:flex-end;gap:8px;margin-bottom:18px}
     .toolbar button{padding:10px 14px;border:1px solid #cbd5e1;border-radius:10px;background:#111827;color:#fff;font-weight:700;cursor:pointer}
-    .footer{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;margin-top:54px;padding-top:18px;border-top:1px solid var(--line);font-size:7pt;line-height:1.4}
+    .footer{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;margin-top:54px;padding-top:18px;border-top:1px solid var(--line);font-size:11px;line-height:1.6}
     .footer-col{white-space:pre-line}
     .footer-accent{height:18px;background:var(--brand);margin:26px -28px -28px}
-    @page{size:A4;margin:10mm 0 42mm 0}
-    @media print{.native-pdf-export body{margin-top:2mm}}
-    .native-pdf-export .footer,.native-pdf-export .footer-accent{display:none!important}
     @media print {.toolbar{display:none} body{margin:12mm}.footer-accent{margin-left:-12mm;margin-right:-12mm;margin-bottom:-12mm}}
   </style>
 </head>
@@ -1436,7 +1449,7 @@ function buildWzHtmlLocalized(order, lang = IAI_ORDERS_DEFAULT_LANG, settings = 
     <div class="summary-row"><div>${escapeHtml(t(lang, "payment"))}</div><div>${escapeHtml(formatMoney(orderCurrency?.orderPayformCost || 0, currency, lang))}</div></div>
     <div class="summary-row total"><div>${escapeHtml(t(lang, "total"))}</div><div>${escapeHtml(formatMoney(summary.totalValue, currency, lang))}</div></div>
   </div>
-  ${footerMarkup}
+  <div class="footer">${footerMarkup}</div>
   <div class="footer-accent"></div>
 </body>
 </html>`;
@@ -1474,7 +1487,7 @@ function buildInvoiceHtmlLocalized(order, lang = IAI_ORDERS_DEFAULT_LANG, settin
       return `
         <tr>
           <td>
-            <strong>${escapeHtml(productDocumentName(product, lang))}</strong>
+            <strong>${escapeHtml(pickProductName(product))}</strong>
             <div class="muted">${escapeHtml(pickProductCode(product))}</div>
             <div class="muted">${escapeHtml(pickProductVariant(product))}</div>
           </td>
@@ -1495,7 +1508,6 @@ function buildInvoiceHtmlLocalized(order, lang = IAI_ORDERS_DEFAULT_LANG, settin
 <html lang="${escapeHtml(normalizeIaiOrdersLang(lang))}">
 <head>
   <meta charset="utf-8" />
-  <meta name="esus-document-style" content="unified" />
   <title>${escapeHtml(t(lang, "invoice"))} ${escapeHtml(summary.orderId)}</title>
   <style>
     :root{--brand:#007fc5;--brand-soft:#eaf5fc;--text:#111827;--muted:#6b7280;--line:#d4dce6}
@@ -1529,12 +1541,9 @@ function buildInvoiceHtmlLocalized(order, lang = IAI_ORDERS_DEFAULT_LANG, settin
     .summary-row.total{border-bottom:none;color:var(--brand);font-size:16px;font-weight:700;padding-top:14px}
     .toolbar{display:flex;justify-content:flex-end;gap:8px;margin-bottom:18px}
     .toolbar button{padding:10px 14px;border:1px solid #cbd5e1;border-radius:10px;background:#111827;color:#fff;font-weight:700;cursor:pointer}
-    .footer{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;margin-top:54px;padding-top:18px;border-top:1px solid var(--line);font-size:7pt;line-height:1.4}
+    .footer{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;margin-top:54px;padding-top:18px;border-top:1px solid var(--line);font-size:11px;line-height:1.6}
     .footer-col{white-space:pre-line}
     .footer-accent{height:18px;background:var(--brand);margin:26px -28px -28px}
-    @page{size:A4;margin:10mm 0 42mm 0}
-    @media print{.native-pdf-export body{margin-top:2mm}}
-    .native-pdf-export .footer,.native-pdf-export .footer-accent{display:none!important}
     @media print {.toolbar{display:none} body{margin:12mm}.footer-accent{margin-left:-12mm;margin-right:-12mm;margin-bottom:-12mm}}
   </style>
 </head>
@@ -1592,7 +1601,7 @@ function buildInvoiceHtmlLocalized(order, lang = IAI_ORDERS_DEFAULT_LANG, settin
     <div class="summary-row"><div>${escapeHtml(t(lang, "shipping"))}</div><div>${escapeHtml(formatMoney(orderCurrency?.orderDeliveryCost || 0, currency, lang))}</div></div>
     <div class="summary-row total"><div>${escapeHtml(t(lang, "invoiceDocTitle"))}</div><div>${escapeHtml(formatMoney(summary.totalValue, currency, lang))}</div></div>
   </div>
-  ${footerMarkup}
+  <div class="footer">${footerMarkup}</div>
   <div class="footer-accent"></div>
 </body>
 </html>`;
@@ -1629,7 +1638,7 @@ function buildConfirmationHtmlLocalized(order, lang = IAI_ORDERS_DEFAULT_LANG, s
       return `
         <tr>
           <td>
-            <strong>${escapeHtml(productDocumentName(product, lang))}</strong>
+            <strong>${escapeHtml(pickProductName(product))}</strong>
             <div class="muted">${escapeHtml(pickProductCode(product))}</div>
             <div class="muted">${escapeHtml(pickProductVariant(product))}</div>
           </td>
@@ -1649,7 +1658,6 @@ function buildConfirmationHtmlLocalized(order, lang = IAI_ORDERS_DEFAULT_LANG, s
 <html lang="${escapeHtml(normalizeIaiOrdersLang(lang))}">
 <head>
   <meta charset="utf-8" />
-  <meta name="esus-document-style" content="unified" />
   <title>${escapeHtml(t(lang, "confirmationDocTitle"))} ${escapeHtml(summary.orderId)}</title>
   <style>
     :root{--brand:#007fc5;--brand-soft:#eaf5fc;--text:#111827;--muted:#6b7280;--line:#d4dce6}
@@ -1684,12 +1692,9 @@ function buildConfirmationHtmlLocalized(order, lang = IAI_ORDERS_DEFAULT_LANG, s
     .summary-row.total{border-bottom:none;color:var(--brand);font-size:16px;font-weight:700;padding-top:14px}
     .toolbar{display:flex;justify-content:flex-end;gap:8px;margin-bottom:18px}
     .toolbar button{padding:10px 14px;border:1px solid #cbd5e1;border-radius:10px;background:#111827;color:#fff;font-weight:700;cursor:pointer}
-    .footer{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;margin-top:54px;padding-top:18px;border-top:1px solid var(--line);font-size:7pt;line-height:1.4}
+    .footer{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;margin-top:54px;padding-top:18px;border-top:1px solid var(--line);font-size:11px;line-height:1.6}
     .footer-col{white-space:pre-line}
     .footer-accent{height:18px;background:var(--brand);margin:26px -28px -28px}
-    @page{size:A4;margin:10mm 0 42mm 0}
-    @media print{.native-pdf-export body{margin-top:2mm}}
-    .native-pdf-export .footer,.native-pdf-export .footer-accent{display:none!important}
     @media print {.toolbar{display:none} body{margin:12mm}.footer-accent{margin-left:-12mm;margin-right:-12mm;margin-bottom:-12mm}}
   </style>
 </head>
@@ -1748,7 +1753,7 @@ function buildConfirmationHtmlLocalized(order, lang = IAI_ORDERS_DEFAULT_LANG, s
     <div class="summary-row"><div>${escapeHtml(t(lang, "shipping"))}</div><div>${escapeHtml(formatMoney(orderCurrency?.orderDeliveryCost || 0, currency, lang))}</div></div>
     <div class="summary-row total"><div>${escapeHtml(t(lang, "total"))}</div><div>${escapeHtml(formatMoney(summary.totalValue, currency, lang))}</div></div>
   </div>
-  ${footerMarkup}
+  <div class="footer">${footerMarkup}</div>
   <div class="footer-accent"></div>
 </body>
 </html>`;
@@ -2025,6 +2030,7 @@ export function initIaiOrdersPanel({ onAvailabilityChange } = {}) {
 
   // BEGIN document product languages
   async function ensureProductTexts(order) {
+    if (currentLang !== "de") return;
     const language=currentLang;
     const products=pickProducts(order), ids=[...new Set(products.map(p=>String(p.productId || "")).filter(id=>/^\d+$/.test(id)))];
     let unavailable=products.some(p=>!/^\d+$/.test(String(p.productId || "")));

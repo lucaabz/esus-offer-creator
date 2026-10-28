@@ -3,6 +3,9 @@ import { itemNetAfterDiscount } from "../calc/pricing.js";
 import { toPLN, fromPLN } from "../utils/currency.js";
 import { escapeHtml, moneyCcy, toNumber, ymdToPL } from "../utils/format.js";
 import { showToast } from "./toast.js";
+import { organizePmReport } from "./pmReportLayout.js";
+import { initPmRichEditors } from "./pmRichEditor.js";
+import { buildMonthlyTrend, renderMonthlyTrend, prepareReportMail, createMonthlyChartImages, renderMonthlyChartsMail } from "./pmTrends.js";
 
 const STORAGE_KEY = "esus.pmReport.v1";
 const MAX_SUBIEKT_PERIODS = 48;
@@ -453,30 +456,6 @@ function bbcodeToPlainText(input) {
     .replace(/\[\*\]/gi, "- ")
     .replace(/\[\/?(b|i|u)\]/gi, "")
     .trim();
-}
-
-function insertBbCode(textarea, type) {
-  if (!textarea) return;
-
-  const start = textarea.selectionStart ?? textarea.value.length;
-  const end = textarea.selectionEnd ?? textarea.value.length;
-  const selected = textarea.value.slice(start, end);
-
-  let replacement = selected;
-
-  if (type === "b" || type === "i" || type === "u") {
-    replacement = `[${type}]${selected || "tekst"}[/${type}]`;
-  } else if (type === "list") {
-    const lines = (selected || "Nowy punkt").split(/\r?\n/).filter(Boolean);
-    replacement = `[list]\n${lines.map((line) => `[*] ${line}`).join("\n")}\n[/list]`;
-  } else if (type === "item") {
-    const lines = (selected || "Nowy punkt").split(/\r?\n/);
-    replacement = lines.map((line) => `[*] ${line || "Nowy punkt"}`).join("\n");
-  }
-
-  textarea.setRangeText(replacement, start, end, "end");
-  textarea.dispatchEvent(new Event("input", { bubbles: true }));
-  textarea.focus();
 }
 
 async function fetchArrayBufferAsBase64(url) {
@@ -1168,8 +1147,9 @@ function buildMailHtml(summary, state) {
 }
 
 function buildHtmlDocument(summary, state) {
-  const mailHtml = buildMailHtml(summary, state);
-  return { mailHtml };
+  const rows = buildMonthlyTrend(state.subiektPeriods, summary.period, summary.subiekt);
+  const history = renderMonthlyTrend(rows, summary.period.mode, true);
+  return prepareReportMail(`<div style="font-family:Arial,Helvetica,sans-serif;color:#1e293b;background:#ffffff;line-height:1.5;">${buildMailHtml(summary, state)}<h2>Subiekt - wykresy miesięczne</h2>${renderMonthlyChartsMail(rows)}${history}</div>`);
 }
 
 async function exportPdf(summary, state) {
@@ -1443,6 +1423,24 @@ async function exportPdf(summary, state) {
     cursorY += lines.length * 5 + 1;
   });
 
+  const chartImages = createMonthlyChartImages(buildMonthlyTrend(state.subiektPeriods, summary.period, summary.subiekt));
+  if (chartImages.length) {
+    doc.addPage();
+    doc.setFont("NotoSans", "bold");
+    doc.setFontSize(14);
+    doc.setTextColor(30, 41, 59);
+    doc.text("Subiekt - trend 12 miesięcy", marginX, 18);
+    cursorY = 25;
+    for (const chart of chartImages) {
+      const width = doc.internal.pageSize.getWidth() - marginX * 2;
+      const height = width * chart.height / chart.width;
+      if (cursorY + height > doc.internal.pageSize.getHeight() - 14) {
+        doc.addPage(); cursorY = 18;
+      }
+      doc.addImage(chart.dataUrl, "PNG", marginX, cursorY, width, height);
+      cursorY += height + 6;
+    }
+  }
   const suffix = summary.period.mode === "month" ? summary.period.label.replace(/\s+/g, "-") : `${summary.period.from}_${summary.period.to}`;
   doc.save(`raport-pm_${suffix}.pdf`);
 }
@@ -1508,6 +1506,7 @@ async function loadOfferRows(period) {
 }
 
 export function initPmReportPanel() {
+  organizePmReport();
   const root = q("offersPmReportView");
   if (!root) {
     return {
@@ -1662,6 +1661,8 @@ export function initPmReportPanel() {
     const previousPeriod = getPreviousPeriod(period);
     const previousSnapshot = findSubiektPeriodSnapshot(state.subiektPeriods, previousPeriod);
     const comparison = buildSubiektComparison(insights, previousSnapshot, previousPeriod);
+    const trends = q("pmReportSubiektTrends");
+    if (trends) trends.innerHTML = renderMonthlyTrend(buildMonthlyTrend(state.subiektPeriods, period, insights), period.mode);
     const groupShareItems = insights?.groups?.slice(0, 4).map((group) => ({
       name: group.group,
       value: Math.max(0, group.totalProfit),
@@ -2058,18 +2059,18 @@ export function initPmReportPanel() {
   async function handleExportHtml() {
     syncStateFromForm();
     const summary = buildSummary(getPeriodFromState(state), state, offerRows, previousOfferRows);
-    const { mailHtml } = buildHtmlDocument(summary, state);
+    const { mailHtml, mailText } = buildHtmlDocument(summary, state);
 
     try {
       if (window.ClipboardItem && navigator.clipboard?.write) {
         await navigator.clipboard.write([
           new ClipboardItem({
             "text/html": new Blob([mailHtml], { type: "text/html" }),
-            "text/plain": new Blob([mailHtml], { type: "text/plain" }),
+            "text/plain": new Blob([mailText], { type: "text/plain" }),
           }),
         ]);
       } else {
-        await navigator.clipboard.writeText(mailHtml);
+        await navigator.clipboard.writeText(mailText);
       }
       showToast("HTML raportu skopiowany do schowka.", { type: "info", ms: 3200 });
     } catch {
@@ -2230,17 +2231,8 @@ export function initPmReportPanel() {
     }
   });
 
-  root.querySelectorAll(".pmReportBbToolbar").forEach((toolbar) => {
-    toolbar.addEventListener("click", (event) => {
-      const button = event.target.closest("[data-bb]");
-      if (!button) return;
-      const targetId = toolbar.getAttribute("data-target");
-      const textarea = targetId ? q(targetId) : null;
-      insertBbCode(textarea, button.getAttribute("data-bb"));
-    });
-  });
-
   applyStateToForm();
+  initPmRichEditors(root, bbcodeToHtml);
   renderMode();
   renderEditors();
   renderCsvMeta();

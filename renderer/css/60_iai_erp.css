@@ -1,0 +1,77 @@
+/* IAI keeps its own column geometry, independent of the offers list. */
+#offersIaiOrdersView { padding: 20px 24px; }
+.iaiOrdersShell { gap: 16px; min-width: 0; }
+.iaiOrdersShell .iaiOrdersHero { padding: 0; border: 0; background: none; box-shadow: none; border-radius: 0; align-items: center; flex-direction: row; gap: 24px; }
+.iaiOrdersHeroMain { min-width: 0; }
+.iaiOrdersHeroMain h2, .iaiOrdersHeroMain .pmReportEyebrow { display: none; }
+.iaiOrdersShell .iaiOrdersHero p { margin: 0; max-width: 680px; font-size: 12px; line-height: 1.6; color: var(--muted); }
+.iaiOrdersHeroSide { min-width: 180px; }
+.iaiOrdersLangPicker { min-width: 0; gap: 5px; }
+.iaiOrdersLangPicker select { height: 34px; border-radius: 4px; }
+.iaiOrdersShell .iaiOrdersPanel { padding: 14px 16px; border-radius: 4px; background: #1d222a; box-shadow: none; border: 1px solid #303741; }
+.iaiOrdersPanelHead h3 { font-size: 13px; font-weight: 600; margin: 0; }
+.iaiOrdersLookupInline { gap: 8px; margin-top: 10px; }
+.iaiOrdersLookupBox { flex: 1; max-width: none; min-width: 160px; }
+.iaiOrdersLookupBox textarea { height: 36px; min-height: 36px; max-height: 36px; border-radius: 4px; padding: 8px 10px; font-size: 12px; }
+.iaiOrdersLookupInline button { height: 36px; border-radius: 4px; flex-shrink: 0; font-size: 12px; }
+.iaiOrdersLookupInline .iaiOrdersIconButton { width: 36px; min-width: 36px; }
+#iaiOrdersTableWrap { flex: none; width: 100%; overflow: auto; border: 1px solid #303741; border-radius: 4px; }
+.offers-table.iaiOrdersTable { min-width: 1000px; width: 100%; table-layout: fixed; }
+.iaiOrdersTable thead th { min-width: 0 !important; padding: 10px 12px; font-size: 11px; font-weight: 500; }
+.iaiOrdersTable thead .iaiOrdersColSerial { width: 68px !important; }
+.iaiOrdersTable thead .iaiOrdersColOrder { width: auto; }
+.iaiOrdersTable thead .iaiOrdersColStatus { width: 145px; }
+.iaiOrdersTable thead .iaiOrdersColDate { width: 132px; }
+.iaiOrdersTable thead .iaiOrdersColValue { width: 126px; }
+.iaiOrdersTable thead .iaiOrdersColActions { width: 272px; }
+.iaiOrdersTable td { padding: 12px; font-size: 12px; vertical-align: middle; }
+.iaiOrdersTable .iaiOrdersPrimary { font-size: 12px; font-weight: 600; line-height: 1.5; }
+.iaiOrdersSecondary { font-size: 11px; line-height: 1.45; }
+.iaiOrdersTable td.right { font-variant-numeric: tabular-nums; }
+.iaiOrdersTable .row-actions { display: flex; justify-content: flex-end; gap: 6px; flex-wrap: nowrap; }
+.iaiOrdersTable .row-actions > * { flex-shrink: 0; }
+.iaiOrdersTable .btn2 { height: 30px; padding: 0 9px; font-weight: 500; }
+.iaiOrdersDocPicker .iaiOrdersDocSelect { width: 132px; min-width: 132px; height: 30px; border-radius: 4px; font-size: 11px; padding: 0 22px 0 8px; }
+.iaiOrdersTable .iaiOrdersDocAction { width: 30px; min-width: 30px; padding: 0; }
+.iaiOrdersStatus { min-height: 24px; padding: 3px 7px; border-radius: 4px; font-size: 11px; font-weight: 500; line-height: 1.35; }
+.iaiOrdersShell .iaiOrdersEmptyState { min-height: 180px; border-radius: 4px; background: #1d222a; box-shadow: none; }
+.iaiOrdersEmptyState h3 { font-size: 16px; font-weight: 600; }
+.iaiOrdersEmptyState p { font-size: 12px; }
+.iaiOrdersModalBackdrop, .iaiOrdersSerialPromptBackdrop { padding: 24px; background: #090d14b8; }
+.iaiOrdersModalCard, .iaiOrdersSerialPromptCard { border: 1px solid #39414d; border-radius: 6px; background: #171b21; box-shadow: 0 16px 60px #0006; padding: 20px; }
+.iaiOrdersModalCard { width: min(1180px, 100%); min-width: 0; }
+.iaiOrdersModalHead { align-items: center; padding-bottom: 16px; border-bottom: 1px solid #303741; gap: 16px; }
+.iaiOrdersModalHead > div:first-child { min-width: 0; }
+.iaiOrdersModalHead h3 { font-size: 18px; font-weight: 600; overflow-wrap: anywhere; }
+.iaiOrdersModalActions { flex-shrink: 0; gap: 8px; }
+.iaiOrdersModalActions button, .iaiOrdersSerialPromptCard button { height: 34px; border-radius: 4px; font-size: 12px; }
+.iaiOrdersModalActions .iaiOrdersDocSelect { width: 170px; height: 34px; }
+.iaiOrdersPreviewGrid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.iaiOrdersPreviewCard, .iaiOrdersDetailCard { min-width: 0; padding: 14px 16px; background: #1d222a; border: 1px solid #303741; border-radius: 4px; box-shadow: none; overflow-wrap: anywhere; }
+.iaiOrdersPreviewCard strong { font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.iaiOrdersPreviewLabel, .iaiOrdersPreviewMeta { font-size: 11px; }
+.iaiOrdersDetailsGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.iaiOrdersDetailCard h4 { font-size: 13px; font-weight: 600; }
+.iaiOrdersDetailCard p { font-size: 12px; line-height: 1.6; }
+.iaiOrdersProductsWrap { max-width: 100%; border: 1px solid #303741; border-radius: 4px; }
+.iaiOrdersProductsTable { min-width: 850px; }
+.iaiOrdersProductsTable th, .iaiOrdersProductsTable td { padding: 10px; font-size: 12px; }
+.iaiOrdersProductsTable .iaiOrdersPrimary { font-size: 12px; font-weight: 600; }
+.iaiOrdersSerialsInput, .iaiOrdersSerialPromptInput { border-radius: 4px; font-size: 12px; background: #171b21; }
+.iaiOrdersSerialPromptRow { border-radius: 4px; background: #1d222a; box-shadow: none; }
+.iaiOrdersSerialPromptHead h3 { font-size: 18px; font-weight: 600; }
+.iaiOrdersRawBox pre { background: #13171d; border-radius: 4px; font-size: 11px; }
+@media (max-width: 1100px) {
+  .iaiOrdersModalHead { flex-direction: column; align-items: stretch; }
+  .iaiOrdersModalActions { justify-content: flex-start; }
+  .iaiOrdersPreviewGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 700px) {
+  #offersIaiOrdersView { padding: 12px; }
+  .iaiOrdersShell .iaiOrdersHero { flex-direction: column; align-items: stretch; gap: 12px; }
+  .iaiOrdersLookupInline { flex-wrap: wrap; }
+  .iaiOrdersLookupBox { flex-basis: 100%; }
+  .iaiOrdersDetailsGrid, .iaiOrdersPreviewGrid { grid-template-columns: minmax(0, 1fr); }
+  .iaiOrdersModalBackdrop, .iaiOrdersSerialPromptBackdrop { padding: 10px; }
+  .iaiOrdersModalCard { padding: 12px; }
+}
