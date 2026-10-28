@@ -376,7 +376,7 @@ app.whenReady().then(async () => {
     const offerPdfs = await win.webContents.executeJavaScript(String.raw`(async()=>{
       const {store}=await import('./app/state/store.js');
       const {generatePdf}=await import('./app/export/pdf.js');
-      const ids=['offerLang','offerCurrency','offerVat','shippingAmount','shippingModeGross','custName','custAddr','custNip','estimateDays'];
+      const ids=['offerLang','offerCurrency','offerVat','shippingAmount','shippingModeGross','custName','custAddr','custNip','estimateDays','pdfTemplate'];
       const fields=ids.map(id=>{const el=document.getElementById(id);return {el,value:el.value,checked:el.checked};});
       const previousItems=store.items, previousSave=window.jspdf.jsPDF.API.save;
       const files=[];
@@ -389,8 +389,9 @@ app.whenReady().then(async () => {
         document.getElementById('custAddr').value='Teststraße 1\n12345 Berlin';
         document.getElementById('custNip').value='DE123456789';
         document.getElementById('estimateDays').value='2';
-        const cases=[['de','0',false],['de','10',false],['de','11.90',true],['pl','10',false],['en','10',false],['hu','10',false]];
-        for(const [lang,amount,gross] of cases){
+        const cases=[['de','0',false],['de','10',false],['de','11.90',true],['pl','10',false],['en','10',false],['hu','10',false],['pl','10',false,'modern'],['en','10',false,'modern'],['hu','10',false,'modern']];
+        for(const [lang,amount,gross,template] of cases){
+          document.getElementById('pdfTemplate').value=template || 'classic';
           document.getElementById('offerLang').value=lang;
           document.getElementById('shippingAmount').value=amount;
           document.getElementById('shippingModeGross').checked=gross;
@@ -402,18 +403,35 @@ app.whenReady().then(async () => {
         for(const {el,value,checked} of fields){el.value=value;el.checked=checked;}
       }
     })()`);
-    assert.equal(offerPdfs.length,6);
+    assert.equal(offerPdfs.length,9);
     const {execFileSync}=require('node:child_process');
     const python=app.isPackaged ? path.join(process.resourcesPath,'python/python.exe') : path.join(__dirname,'../runtime/python/python.exe');
     const texts=offerPdfs.map(pdf=>execFileSync(python,['-I','-X','utf8','-c',"import sys;from io import BytesIO;from pypdf import PdfReader;print('\\n'.join(p.extract_text() for p in PdfReader(BytesIO(sys.stdin.buffer.read())).pages))"],{input:Buffer.from(pdf,'base64'),encoding:'utf8'}));
     assert.ok(!texts[0].includes('Versandkosten'));
     assert.match(texts[0],/238[,.]00/);
-    for(const text of texts.slice(1))assert.match(text,/249[,.]90/,'Shipping must be included in the offer total');
+    for(const text of texts.slice(1,3)) assert.match(text,/249[,.]90/,'German totals include shipping');
+    for(const text of texts.slice(3,6)) assert.match(text,/238[,.]00/,'Foreign classic output preserves upstream item totals');
+    for(const text of texts.slice(6)) assert.match(text,/249[,.]90/,'Foreign modern output preserves upstream shipping total');
     assert.ok(texts[1].includes('Versandkosten') && texts[2].includes('Versandkosten'));
     assert.ok(texts[1].includes('USt-IdNr.') && !texts[1].includes('NIP:'));
     assert.ok(texts[1].includes('Waldsiedlung Fichtendamm 4'));
     assert.ok(texts[1].includes('Voraussichtliche Lieferzeit: 2 Werktage.'));
-    console.log('PASS: PDF shipping position and totals (net/gross/free), all offer languages, German tax label and delivery text');
+    const navigation = await win.webContents.executeJavaScript(`(() => {
+      const lang=document.getElementById('offerLang'), template=document.getElementById('pdfTemplate');
+      const previous=lang.value;
+      lang.value='de';lang.dispatchEvent(new Event('change',{bubbles:true}));
+      const germanHidden=getComputedStyle(template.parentElement).display==='none';
+      lang.value='pl';lang.dispatchEvent(new Event('change',{bubbles:true}));
+      const polishVisible=getComputedStyle(template.parentElement).display!=='none';
+      lang.value=previous;lang.dispatchEvent(new Event('change',{bubbles:true}));
+      const entry=document.getElementById('btnOffersInvoices');entry.click();
+      const selected=entry.getAttribute('aria-current')==='page' && entry.closest('.erp-nav-items')!==null;
+      document.getElementById('btnOffers').click();
+      const closed=document.getElementById('invoiceWorkspace').hidden;
+      return {germanHidden,polishVisible,selected,closed};
+    })()`);
+    assert.deepEqual(navigation,{germanHidden:true,polishVisible:true,selected:true,closed:true});
+    console.log('PASS: German PDF totals and layout; upstream classic/modern PL/EN/HU PDFs; language-specific controls and invoice sidebar navigation');
     const orderDraft={orderId:"customer_login",orderSerialNumber:54321,
       clientResult:{clientBillingAddress:{clientFirm:"API Kunde",clientStreet:"Teststraße 1",clientZipCode:"10317",clientCity:"Berlin",clientCountryId:"DE",clientEmail:"kunde@example.org"}},
       productsResults:[{productName:"Original",documentNames:{de:"Deutscher Artikel"},productQuantity:"3",productOrderPriceNet:"100",productOrderPrice:"119",productVat:"19"}],

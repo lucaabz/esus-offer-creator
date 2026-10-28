@@ -1,18 +1,22 @@
-# Architecture – ESUS IT Offer Generator 1.8.0
+# Architecture – ESUS IT Offer Generator: upstream 2.0.0 integration
 
 ## Baseline and integration boundaries
 
-The application builds on version 1.7.3 of musicshaggy/esus-offer-creator
-(commit `3e90d434289af73a0a31518789a0fd7b819f3e59`). The existing offer, order,
-reporting and settings modules remain the foundation of the app. Version 1.8.0
-extends the previously integrated local e-invoicing module with shared document
-layouts, localized product names and direct order imports.
+This integration combines the reviewed fork state (`00542c0`, application 1.8.0)
+with the author's 2.0.0 master (`ad4742ef0b1921b6ea31c055705d62640e682c46`).
+The integration branch is `codex/integrate-upstream-2.0`. The manifest adopts the
+upstream 2.0.0 version; this is an integration baseline, not a published release.
 
-Changes to existing files cover explicit integration points, document rendering,
-shipping lines and additional document metadata. `tests/parity.test.cjs` compares
-original files against the pinned Git commit and explicitly accounts for approved
-changes. This checks source preservation; it does not guarantee every possible
-original workflow.
+The author's new sidebar, offer editor, IAI-ID product search, PM reports, charts,
+settings and classic/modern offer templates are imported directly from upstream.
+German document layouts and the invoice backend remain unchanged from the reviewed
+fork. Small integration adapters connect those features to the new interface.
+
+`tests/parity.test.cjs` compares 5,776 upstream files against the pinned 2.0.0
+commit, accounting explicitly for German/invoice hooks. Another test compares
+reviewed German templates and invoice backend files against the fork commit.
+These checks protect source boundaries; they do not guarantee every possible
+workflow or replace review of real invoice data.
 
 ## Electron, user interface and storage
 
@@ -47,8 +51,9 @@ engines and share design data. Installer resources provide the same design and
 font files to Python.
 
 German documents use the GmbH profile. Existing company profiles for other
-languages are retained. Foreign-language offers continue to use the existing
-renderer, with the authorized footer and shipping adjustments.
+languages are retained. PL/EN/HU offers use the author's 2.0.0 classic/modern renderers without our previous
+footer or shipping modifications. Foreign order document renderers and footer
+helpers are copied directly from upstream as well.
 
 German documents share blue accents, normal-weight address, metadata and item
 text, and dark bold final totals. Quantities are centered and prices aligned
@@ -56,7 +61,7 @@ right; numeric column widths account for formatted values. Repeated table header
 and reserved footer space support multiple pages. The address area targets
 standard DIN-long/C5 window envelopes. This is not a general DIN certification.
 
-Offer shipping is a calculated line item. Alternative products remain excluded
+German offer shipping is a calculated line item. Alternative products remain excluded
 from the main total. Delivery notes contain goods only, use a plain document title,
 and show the IdoSell order number plus an optional customer purchase-order number.
 Delivery dates and conditions are not repeated. Editable document fields supplement
@@ -75,7 +80,8 @@ prices retain their precision.
 `background/idosellProductTexts.js` uses existing API helpers for read-only calls
 to `products/products/search`. It requests `lang_data`, passes the document language
 through `productSearchingLangId`, and selects the corresponding entry from
-`productDescriptionsLangData`. Supported languages are DE, PL, EN and HU.
+`productDescriptionsLangData`. The lookup helper supports DE, PL, EN and HU; order-document integration requests
+translations only for German. Other order documents retain upstream product names.
 
 Requests accept up to 100 product IDs. A five-minute cache is scoped by shop,
 language and product. Additional names are stored under `documentNames`; original
@@ -132,9 +138,30 @@ prepares pinned private Python/Java runtimes and invoice resources. End users
 install the Windows setup executable and do not need a Node/Python development
 environment.
 
-Application version: 1.8.0. Existing dependency versions are retained. The automatic
+Integration manifest version: 2.0.0 (upstream baseline; no release published). Existing dependency versions are retained. The automatic
 update source in `package.json` still points to the original repository,
 `musicshaggy/esus-offer-creator`. Pushing or merging the fork does not distribute
 an installer or change an installed executable. A separate fork release/update
 channel would require an explicit decision. Installer binaries belong in GitHub
 release assets, not source commits.
+
+## Integration behavior at language boundaries
+
+`renderer/app/export/pdf.js` retains the upstream offer implementation, with its
+entry function renamed locally. The public entry dispatches German to the reviewed
+German renderer and all other languages to the upstream implementation. The
+German wrapper supplies the buyer tax identifier directly; upstream customer
+formatting remains unchanged.
+
+For German offers, the upstream template picker and version-date toggle are
+hidden: the reviewed layout already has its own actual offer date and no duplicate
+version-date caption. Stored upstream options remain intact for PL/EN/HU.
+
+The e-invoice navigation button is placed beside IAI in the new sidebar. Its
+workspace reserves the sidebar width; navigation can leave the workspace without
+discarding the invoice draft. The author's ERP layout code is not rewritten.
+
+The upstream classic offer totals summarize goods and list shipping separately in
+the conditions; the modern template includes shipping in its final amount. German
+offers retain the reviewed shipping line and inclusive totals. These differences
+are deliberate preservation of upstream behavior, not a common recalculation.

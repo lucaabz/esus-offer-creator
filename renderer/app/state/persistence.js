@@ -1,5 +1,6 @@
 import { ESUS_STORAGE_KEY } from "../config/constants.js";
 import { store, setItems } from "./store.js";
+import { applyOfferDocumentOptions } from "./offerDocumentOptions.js";
 
 export function collectFormState() {
   const fields = {};
@@ -22,6 +23,7 @@ export function applyFormState(state, { afterApply } = {}) {
     });
   }
 
+  applyOfferDocumentOptions(state.fields);
   if (Array.isArray(state.items)) {
     setItems(state.items.map((it) => ({
       desc: it.desc ?? "",

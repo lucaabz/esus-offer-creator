@@ -1,6 +1,6 @@
 #invoiceWorkspace {
   position: fixed;
-  inset: 34px 0 0;
+  inset: var(--titlebar-h, 34px) 0 0 var(--erp-sidebar, 0px);
   background: var(--bg);
   z-index: 9990;
   overflow: auto;
@@ -323,3 +323,6 @@ body.invoice-active > main {
     width: 100%;
   }
 }
+
+/* Hidden German-only option wrappers must override upstream flex layouts. */
+#pdfTemplateHelp[hidden], .offerTermsToggle[hidden] { display: none !important; }

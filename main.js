@@ -23,7 +23,7 @@ let splashWin = null;
 let win = null;
 const idosellOpenApiCache = new Map();
 const idosellProductSearchCache = new Map();
-const IDOSELL_PRODUCT_SEARCH_CACHE_VERSION = "v3";
+const IDOSELL_PRODUCT_SEARCH_CACHE_VERSION = "v4";
 const IDOSELL_CUSTOMER_QUESTIONS_FEATURE_ENABLED = false;
 const IAI_ORDERS_OPEN_STATUSES = [
   "new",
@@ -79,7 +79,7 @@ function createSplash() {
     alwaysOnTop: true,
     show: true,
     center: true,
-    backgroundColor: "#0b1020",
+    backgroundColor: "#171b21",
   });
 
   splashWin.loadFile(path.join(__dirname, "renderer", "splash.html"));
@@ -93,7 +93,7 @@ function createWindow() {
     frame: false,
     show: false,
     titleBarStyle: "hidden",
-    backgroundColor: "#0b1220",
+    backgroundColor: "#171b21",
     icon: path.join(__dirname, "renderer", "assets", "favicon.ico"),
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
@@ -2466,17 +2466,21 @@ function scoreIdoSellProductResult(product, query) {
   const q = normalizeSearchText(query);
   if (!q) return 0;
 
+  const id = normalizeSearchText(product?.id);
   const name = normalizeSearchText(product?.name);
   const code = normalizeSearchText(product?.code);
   const producerCode = normalizeSearchText(product?.producerCode);
   const producer = normalizeSearchText(product?.producer);
-  const haystack = [name, code, producerCode, producer].filter(Boolean).join(" ");
+  const haystack = [id, name, code, producerCode, producer].filter(Boolean).join(" ");
 
   let score = 0;
+  if (id === q) score += 300;
   if (name === q) score += 200;
   if (code === q || producerCode === q) score += 220;
+  if (id.startsWith(q)) score += 140;
   if (name.startsWith(q)) score += 120;
   if (code.startsWith(q) || producerCode.startsWith(q)) score += 130;
+  if (id.includes(q)) score += 100;
   if (name.includes(q)) score += 70;
   if (code.includes(q) || producerCode.includes(q)) score += 90;
   if (producer.includes(q)) score += 24;
@@ -2527,8 +2531,9 @@ function pickIdoSellProductsFromPayload(payload, query, preferredCurrency = "PLN
 async function searchIdoSellProducts(query, preferredCurrency = "PLN") {
   const q = String(query || "").trim();
   const requestedCurrency = "PLN";
-  if (q.length < 2) {
-    return { ok: false, message: "Wpisz co najmniej 2 znaki indeksu.", products: [] };
+  const isProductId = /^\d+$/.test(q);
+  if (!isProductId && q.length < 2) {
+    return { ok: false, message: "Wpisz ID IdoSell albo co najmniej 2 znaki indeksu.", products: [] };
   }
 
   const normalizedIndex = q.replace(/\s+/g, "").trim();
@@ -3261,6 +3266,10 @@ async function createFreshOfferPayload() {
     ),
     fields: {
       offerDate: todayYMD(),
+      hideOfferDatePdf: false,
+      pdfTemplate: "classic",
+      showDiscountColumnPdf: true,
+      isEstimate: false,
       paymentMethod: "invoice",
       invoiceDays: 14,
       shippingNet: 0,

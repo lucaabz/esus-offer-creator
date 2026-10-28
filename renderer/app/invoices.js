@@ -712,19 +712,45 @@ invoiceEntry.title = "E-faktury";
 invoiceEntry.setAttribute("aria-label", "E-faktury");
 invoiceEntry.innerHTML =
   '<i class="fa-solid fa-file-invoice"></i><span class="offers-header-action-label">E-faktury</span>';
-$("btnOffersIaiOrders").after(invoiceEntry);
-const offersList = $("offersListView");
-function syncInvoiceEntry() {
-  invoiceEntry.hidden = !offersList.classList.contains("is-active");
+function placeInvoiceEntry() {
+  $("btnOffersIaiOrders").after(invoiceEntry);
+  const sidebar = invoiceEntry.closest(".erp-sidebar");
+  invoiceEntry.classList.toggle("erp-nav-button", !!sidebar);
+  invoiceEntry.querySelector("span").classList.toggle("erp-nav-label", !!sidebar);
+  invoiceEntry.hidden = !sidebar && !$("offersListView").classList.contains("is-active");
 }
-new MutationObserver(syncInvoiceEntry).observe(offersList, {
-  attributes: true,
-  attributeFilter: ["class"],
+placeInvoiceEntry();
+window.addEventListener("DOMContentLoaded", placeInvoiceEntry, { once: true });
+new MutationObserver(placeInvoiceEntry).observe($("offersListView"), {
+  attributes: true, attributeFilter: ["class"],
 });
-syncInvoiceEntry();
+let previousNavigation = [];
+function setInvoiceActive(active) {
+  if (active && root.hidden) {
+    previousNavigation = [...document.querySelectorAll(".erp-nav-items > button")]
+      .filter(button => button !== invoiceEntry)
+      .map(button => ({button, current:button.classList.contains("is-current"), aria:button.getAttribute("aria-current")}));
+    for (const {button} of previousNavigation) {
+      button.classList.remove("is-current"); button.removeAttribute("aria-current");
+    }
+  } else if (!active) {
+    for (const {button,current,aria} of previousNavigation) {
+      button.classList.toggle("is-current",current);
+      if (aria) button.setAttribute("aria-current",aria); else button.removeAttribute("aria-current");
+    }
+    previousNavigation = [];
+  }
+  root.hidden = !active;
+  document.body.classList.toggle("invoice-active",active);
+  invoiceEntry.classList.toggle("is-current",active);
+  if (active) invoiceEntry.setAttribute("aria-current","page"); else invoiceEntry.removeAttribute("aria-current");
+}
+document.addEventListener("click", event => {
+  const button=event.target.closest(".erp-nav-items > button");
+  if (!root.hidden && button && button !== invoiceEntry) setInvoiceActive(false);
+},true);
 invoiceEntry.addEventListener("click", () => {
-  root.hidden = false;
-  document.body.classList.add("invoice-active");
+  setInvoiceActive(true);
   if (!invoice) initialize();
   invoiceBack.focus();
 });
@@ -736,8 +762,7 @@ invoiceBack.innerHTML =
 root.querySelector(".invoice-heading h1").textContent = "E-faktury";
 root.querySelector(".invoice-heading > div").prepend(invoiceBack);
 invoiceBack.addEventListener("click", () => {
-  root.hidden = true;
-  document.body.classList.remove("invoice-active");
+  setInvoiceActive(false);
   invoiceEntry.focus();
 });
 async function initialize() {
@@ -769,8 +794,7 @@ window.addEventListener("esus:invoice-from-order", async (event) => {
     fill();
     activate("general");
     await preview();
-    root.hidden = false;
-    document.body.classList.add("invoice-active");
+    setInvoiceActive(true);
     status("Przejęto zamówienie IdoSell. Uzupełnij numer i daty faktury, potwierdź VAT i płatność, następnie sprawdź dokument.");
     accepted = true;
     invoiceBack.focus();

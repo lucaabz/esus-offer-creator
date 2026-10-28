@@ -4,7 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { execFileSync } = require("node:child_process");
 const appRoot = path.join(__dirname, "..");
-const baseline = "3e90d434289af73a0a31518789a0fd7b819f3e59";
+const baseline = "ad4742ef0b1921b6ea31c055705d62640e682c46";
 const additions = {
   "scripts/release_publish.cmd": "call npm run invoice:prepare\nif errorlevel 1 exit /b 1\n",
   ".gitignore":
@@ -56,6 +56,20 @@ function originalFiles() {
   );
 }
 const original = originalFiles();
+test("Reviewed German layouts and invoice backend remain unchanged during upstream integration", () => {
+  const reviewed = "00542c060d50dd74983c3e3c0d1d3fad93dbdd93";
+  const files = [
+    "renderer/app/export/offer-layout.js", "renderer/app/export/document-layout.js",
+    "renderer/assets/document-design.json", "renderer/assets/fonts/Inter-Regular.ttf",
+    "renderer/assets/fonts/Inter-Bold.ttf", "invoice/pdf_layout.py", "invoice/zugferd.py",
+    "invoice/xrechnung.py", "invoice/model.py", "invoice/bridge.py", "invoice/order_import.py",
+    "invoice/checks.py", "invoice/importer.py", "invoice/seller-defaults.json",
+  ];
+  for (const filename of files) {
+    assert.deepEqual(normalizeCheckout(fs.readFileSync(path.join(appRoot,filename))),
+      normalizeCheckout(git(["show",reviewed + ":" + filename])),filename);
+  }
+});
 function normalizeCheckout(contents) {
   const text = contents.toString("utf8");
   // Windows checkouts can change text line endings. Binary files remain exact.
@@ -73,7 +87,7 @@ test("Official validation resources preserve their manifest hashes in Git", () =
     assert.equal(crypto.createHash("sha256").update(staged).digest("hex"), expected, filename);
   }
 });
-test("Original 1.7.3 files match the upstream Git commit except documented additive hooks", () => {
+test("Original 2.0.0 files match upstream except documented German and invoice hooks", () => {
   let checked = 0;
   for (const [filename, before] of original) {
     if (["package.json", "package-lock.json"].includes(filename)) continue;
@@ -87,22 +101,15 @@ test("Original 1.7.3 files match the upstream Git commit except documented addit
       assert.ok(current.includes('if (getPdfLang() !== "de") return generateLegacyPdf(options);'));
       let legacy = current.slice(0, current.indexOf(marker)).trimEnd() + "\n";
       const expected = before.toString("utf8").replace(/\r\n/g,"\n").trimEnd() + "\n";
-      const footerStart = "  // ===== Footer =====";
-      const footerEnd = "  doc.setTextColor(0);\n  drawPageOverlays";
-      assert.ok(legacy.includes("drawFooter(doc,legacyCompanyColumns(getCompanyFooterLines(lang),legacyContactLines(footerSettings.profile,lang)),fontName)"));
-      legacy = legacy.slice(0,legacy.indexOf(footerStart)) + expected.slice(expected.indexOf(footerStart),expected.indexOf(footerEnd,expected.indexOf(footerStart))) + legacy.slice(legacy.indexOf(footerEnd,legacy.indexOf(footerStart)));
-      legacy = legacy.replace('import { renderGermanOffer, drawFooter } from "./offer-layout.js";\n', "")
-        .replace('import { legacyCompanyColumns, legacyContactLines } from "../config/documentDesign.js";\n', "")
-        .replace('import { getUserSettings } from "../state/userSettings.js";\n', "")
-        .replace("async function generateLegacyPdf(", "export async function generatePdf(")
-        .replace("margin: { left: margin, right: margin, bottom: 42 },","margin: { left: margin, right: margin },")
-        .replace("margin: { left: tableX, right: pageW - tableX - tableW, bottom: 42 },","margin: { left: tableX, right: pageW - tableX - tableW },")
-        .replace("Math.max(44, companyLines.length * companyLineH + estLinesCount * estimateLineH + 4)","companyLines.length * companyLineH + estLinesCount * estimateLineH + 4");
-      legacy = legacy.replace(/  \/\/ Shipping position mirrors[\s\S]*?  \/\/ End shipping position\.\n\n/, "")
-        .replace("const sumNet = deliveryValues.net + store.items.reduce(","const sumNet = store.items.reduce(")
-        .replace('    taxId: nip,\n', "")
-        .replace('nip: nip ? `${({de:"USt-IdNr.",en:"VAT ID",hu:"Adószám"}[lang] || "NIP")}: ${nip}` : "",','nip: nip ? `NIP: ${nip}` : "",');
-      assert.equal(legacy,expected,"Legacy offer changes are confined to the authorized footer");
+      legacy = legacy.replace('import { renderGermanOffer } from "./offer-layout.js";\n', "")
+        .replace("async function generateLegacyPdf(", "export async function generatePdf(");
+      assert.equal(legacy,expected,"Upstream classic/modern offer renderers must remain unchanged");
+    } else if (filename === "renderer/app/state/offerDocumentOptions.js") {
+      const current = after.toString("utf8").replace(/\r\n/g,"\n");
+      const marker = "// German documents use the reviewed local layout;";
+      assert.ok(current.includes(marker));
+      const upstreamPart = current.slice(0,current.indexOf(marker)).trimEnd().replace("  syncGermanDocumentControls();\n", "") + "\n";
+      assert.equal(upstreamPart,before.toString("utf8").replace(/\r\n/g,"\n"));
     } else if (filename === "renderer/app/ui/iaiOrders.js" || filename === "main.js") {
       let current = after.toString("utf8").replace(/\r\n/g, "\n");
       current=current.replace(/(?:  )?\/\/ BEGIN document product languages[\s\S]*?(?:  )?\/\/ END document product languages\n\n/g, "")
@@ -117,19 +124,7 @@ test("Original 1.7.3 files match the upstream Git commit except documented addit
         remove(/      \.\.\.\(String\(html \|\| ""\)[\s\S]*?      \} : \{\}\),\n/);
         remove(/require\("\.\/invoice-ipc"\);\n/);
       } else {
-        remove(/import \{ legacyCompanyColumns, legacyContactLines \} from "\.\.\/config\/documentDesign\.js";\n/);
-        const expectedFooter = before.toString("utf8").replace(/\r\n/g,"\n");
-        const startFooter = expectedFooter.indexOf("function buildDocumentFooterColumns(");
-        const endFooter = expectedFooter.indexOf("function buildProductSerialKey",startFooter);
-        const currentStart = current.indexOf("function buildDocumentFooterColumns(");
-        const currentEnd = current.indexOf("function buildProductSerialKey",currentStart);
-        assert.ok(current.slice(currentStart,currentEnd).includes("legacyCompanyColumns(footerLines,legacyContactLines(profile,normalizedLang))"));
-        current = current.slice(0,currentStart) + expectedFooter.slice(startFooter,endFooter) + current.slice(currentEnd);
-        current = current.replaceAll("font-size:7pt;line-height:1.4}","font-size:11px;line-height:1.6}")
-          .replaceAll('  <meta name="esus-document-style" content="unified" />\n', "")
-          .replaceAll('${footerMarkup}\n  <div class="footer-accent">','<div class="footer">${footerMarkup}</div>\n  <div class="footer-accent">')
-          .replaceAll('    @page{size:A4;margin:10mm 0 42mm 0}\n    @media print{.native-pdf-export body{margin-top:2mm}}\n    .native-pdf-export .footer,.native-pdf-export .footer-accent{display:none!important}\n', "");
-        remove(/import \{ buildBusinessDocumentHtml, documentFieldsMarkup, buildFooterMarkup \} from "\.\.\/export\/document-layout\.js";\n/);
+        remove(/import \{ buildBusinessDocumentHtml, documentFieldsMarkup \} from "\.\.\/export\/document-layout\.js";\n/);
         remove(/export function buildGermanOrderDocument\([\s\S]*?\n\}\n\n(?=function sameOrder)/);
         remove(/  let documentSave = Promise\.resolve\(\);[\s\S]*?\n  \}\n(?=\n  function getOrderSerialsDraft)/);
         remove(/    if \(currentLang === "de"\) \{\n      const type = normalizeIaiOrdersDocumentType[\s\S]*?\n    \}\n/);
@@ -168,7 +163,7 @@ test("Original 1.7.3 files match the upstream Git commit except documented addit
 });
 test("Existing dependency versions, scripts and update configuration are preserved", () => {
   const expected = JSON.parse(original.get("package.json"));
-  expected.version = "1.8.0";
+  expected.version = "2.0.0";
   expected.scripts.test = "node --test tests/*.test.cjs";
   expected.scripts["invoice:prepare"] = "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-invoice.ps1";
   for (const hook of ["prestart", "prepack", "predist"]) expected.scripts[hook] = "npm run invoice:prepare";
@@ -189,8 +184,8 @@ test("Existing dependency versions, scripts and update configuration are preserv
     expected,
   );
   const lock = JSON.parse(original.get("package-lock.json"));
-  lock.version = "1.8.0";
-  lock.packages[""].version = "1.8.0";
+  lock.version = "2.0.0";
+  lock.packages[""].version = "2.0.0";
   assert.deepEqual(
     JSON.parse(fs.readFileSync(path.join(appRoot, "package-lock.json"))),
     lock,
@@ -200,7 +195,9 @@ const packaged = path.join(appRoot, "dist/win-unpacked/resources/app");
 const archive = path.join(appRoot, "dist/win-unpacked/resources/app.asar");
 test(
   "Local Windows package contains the audited source and current integration",
-  { skip: !fs.existsSync(packaged) && !fs.existsSync(archive) },
+  { skip: (!fs.existsSync(packaged) && !fs.existsSync(archive)) ||
+      (fs.existsSync(archive) && JSON.parse(require("@electron/asar").extractFile(archive,"package.json")).version !== JSON.parse(fs.readFileSync(path.join(appRoot,"package.json"))).version
+        ? "No matching-version Windows package; rebuild before package verification" : false) },
   () => {
     const files = [...original.keys()].filter(
       (filename) =>

@@ -13,14 +13,3 @@ export function companyColumns(company = documentDesign.company) {
     [company.bank, `IBAN: ${iban}`, `BIC: ${company.bic}`],
   ];
 }
-
-// Keep the original foreign company data; unavailable bank details stay absent.
-export function legacyCompanyColumns(lines, contacts = []) {
-  return [[lines[0], ...contacts].filter(Boolean), lines.slice(1,2), lines.slice(2)];
-}
-
-export function legacyContactLines(profile = {}, lang = "pl") {
-  const website={pl:"www.esus-it.pl",en:"www.esus-it.com",de:"www.esus-it.de"}[lang];
-  return [profile.fullName,profile.phone ? `Tel: ${profile.phone}` : "",
-    profile.email ? `E-Mail: ${profile.email}` : "",website ? `Web: ${website}` : ""].filter(Boolean);
-}

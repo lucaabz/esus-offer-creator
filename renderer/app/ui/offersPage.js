@@ -1,4 +1,4 @@
-import { money, ymdToPL, toNumber } from "../utils/format.js";
+import { money, ymdToPL, toNumber, escapeHtml } from "../utils/format.js";
 import { VAT_RATE } from "../config/constants.js";
 import { itemNetAfterDiscount } from "../calc/pricing.js";
 import { showToast, showToastAction } from "../ui/toast.js";
@@ -250,23 +250,25 @@ function renderRows(rows, { onOpen, onDuplicate, onDelete }) {
     tr.innerHTML = `
       <td class="statusCell">
         <span class="offers-statusIcon offers-statusIcon--${status}" title="${statusLabel}" aria-label="${statusLabel}">
-          <i class="${statusIcon}"></i>
+          <i class="${statusIcon}" aria-hidden="true"></i>
+          <span>${statusLabel}</span>
         </span>
       </td>
-      <td class="num">${offerNo}</td>
-      <td>${client}</td>
+      <td class="num"><button class="offer-number-link" data-act="open-number">${escapeHtml(offerNo)}</button></td>
+      <td>${escapeHtml(client)}</td>
       <td class="muted">${updated}</td>
       <td class="right">${gross}</td>
       <td class="right">
         <div class="row-actions">
           <button class="btn2 primary" data-act="open">Otwórz</button>
-          <button class="btn2" data-act="dup">Duplikuj</button>
-          <button class="btn2 danger" data-act="del">Usuń</button>
+          <button class="btn2" data-act="dup" title="Duplikuj ofertę" aria-label="Duplikuj ofertę ${escapeHtml(offerNo)}"><i class="fa-regular fa-copy" aria-hidden="true"></i></button>
+          <button class="btn2 danger" data-act="del" title="Usuń ofertę" aria-label="Usuń ofertę ${escapeHtml(offerNo)}"><i class="fa-regular fa-trash-can" aria-hidden="true"></i></button>
         </div>
       </td>
     `;
 
     tr.querySelector('[data-act="open"]')?.addEventListener("click", () => onOpen(row, rowId));
+    tr.querySelector('[data-act="open-number"]')?.addEventListener("click", () => onOpen(row, rowId));
     tr.querySelector('[data-act="dup"]')?.addEventListener("click", () => onDuplicate(row, rowId));
     tr.querySelector('[data-act="del"]')?.addEventListener("click", () => onDelete(row, rowId));
     tbody.appendChild(tr);
@@ -391,7 +393,7 @@ async function loadOffers() {
   return await enrichOffers(list);
 }
 
-export function initOffersSubpage({ onBack, onOpenOfferLoaded, onNewOffer } = {}) {
+export function initOffersSubpage({ onBack, onOpenOfferLoaded, onNewOffer, onBeforeNavigate } = {}) {
   const searchEl = qs("offersSearch");
   const btnRefresh = qs("btnOffersRefresh");
   const btnIaiOrders = qs("btnOffersIaiOrders");
@@ -426,8 +428,7 @@ export function initOffersSubpage({ onBack, onOpenOfferLoaded, onNewOffer } = {}
     if (searchEl) searchEl.style.display = isList ? "" : "none";
     if (btnNew) btnNew.style.display = isList ? "inline-flex" : "none";
     if (countPill) countPill.style.display = isList ? "inline-flex" : "none";
-    if (btnRefresh) btnRefresh.style.display = isList ? "inline-flex" : "none";
-    if (btnIaiOrders) btnIaiOrders.style.display = isList ? "inline-flex" : "none";
+    // Module navigation remains available in every workspace.
     if (btnSubviewBack) btnSubviewBack.style.display = isList ? "none" : "inline-flex";
   }
 
@@ -585,12 +586,17 @@ export function initOffersSubpage({ onBack, onOpenOfferLoaded, onNewOffer } = {}
     resetOffersTableScroll();
   }
 
-  btnRefresh?.addEventListener("click", () => {
-    void showReportView();
-  });
-  btnIaiOrders?.addEventListener("click", () => {
-    void showOrdersView();
-  });
+  const navigate = async (showView) => {
+    try {
+      await onBeforeNavigate?.();
+      await showView();
+    } catch (error) {
+      console.error(error);
+      showToast("Nie udało się otworzyć modułu. Spróbuj ponownie.", { type: "error", ms: 3500 });
+    }
+  };
+  btnRefresh?.addEventListener("click", () => { void navigate(showReportView); });
+  btnIaiOrders?.addEventListener("click", () => { void navigate(showOrdersView); });
   btnSubviewBack?.addEventListener("click", showListView);
   btnBack?.addEventListener("click", () => onBack?.());
   btnNew?.addEventListener("click", () => onNewOffer?.());
