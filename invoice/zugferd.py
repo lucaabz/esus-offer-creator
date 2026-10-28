@@ -44,7 +44,7 @@ def build_cii(invoice):
     if any(contact.values()):
         seller["contacts"] = [{k: v for k, v in contact.items() if v}]
     if invoice.supplier_number:
-        seller["identifiers"] = {None: [invoice.supplier_number]}
+        seller["identifiers"] = {None: invoice.supplier_number}
     category = "S" if invoice.tax_case == "19 % Deutschland" else "K"
     tax = {"BT-116": invoice.net_total, "BT-117": invoice.tax_total,
            "BT-118": category, "BT-119": "19" if category == "S" else "0"}
@@ -56,7 +56,8 @@ def build_cii(invoice):
             "BT-112": invoice.gross_total, "BT-113": invoice.paid, "BT-115": invoice.payable,
             "BG-23": [tax], "BG-25": []}
     for value, key in [(invoice.due_date, "BT-9"), (invoice.buyer_reference, "BT-10"),
-                       (invoice.purchase_order, "BT-13"), (invoice.payment_code, "BT-81")]:
+                       (invoice.purchase_order, "BT-13"), (invoice.payment_code, "BT-81"),
+                       (invoice.payment_text if invoice.payment_code else "", "BT-82")]:
         if value:
             data[key] = value
     if invoice.remarks:
@@ -154,12 +155,16 @@ def money_label(value):
 
 
 def price_label(value):
-    value = number(value).normalize()
-    text = format(value, ".2f") if value.as_tuple().exponent >= -2 else format(value, "f")
-    return text.replace(".", ",") + " EUR"
+    # PDF display only. build_cii uses the unrounded net_price from Invoice.
+    return money_label(value)
 
 
 def render_invoice(invoice, language="de"):
+    if language == "de":
+        from pdf_layout import render_invoice_body
+        return with_pdfa_profile(render_invoice_body(invoice, money_label, price_label))
+    from pdf_layout import invoice_notes, payment_caption, tracking_font
+    remarks, tracking = invoice_notes(invoice)
     from invoice_i18n import translator
     tr = translator(language)
     import reportlab
@@ -169,7 +174,7 @@ def render_invoice(invoice, language="de"):
     from reportlab.pdfbase import pdfmetrics
     from reportlab.pdfbase.ttfonts import TTFont
     from reportlab.pdfgen import canvas
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, KeepTogether
     from pypdf import PdfReader, PdfWriter
     from pypdf.generic import ArrayObject, DictionaryObject, NameObject, NumberObject, TextStringObject, DecodedStreamObject
     from PIL import ImageCms
@@ -178,7 +183,7 @@ def render_invoice(invoice, language="de"):
         if name not in pdfmetrics.getRegisteredFontNames():
             pdfmetrics.registerFont(TTFont(name, str(fonts / filename)))
     pdfmetrics.registerFontFamily("IdoRegular", normal="IdoRegular", bold="IdoBold", italic="IdoRegular", boldItalic="IdoBold")
-    normal = ParagraphStyle("body", fontName="IdoRegular", fontSize=9, leading=13, textColor=colors.HexColor("#202b36"))
+    normal = ParagraphStyle("body", fontName="IdoRegular", fontSize=9, leading=12, textColor=colors.HexColor("#202b36"))
     heading = ParagraphStyle("title", parent=normal, fontName="IdoBold", fontSize=21, leading=27, spaceAfter=14)
     right = ParagraphStyle("right", parent=normal, alignment=TA_RIGHT)
     def paragraph(value, style=normal):
@@ -199,8 +204,12 @@ def render_invoice(invoice, language="de"):
         story.append(paragraph(tr("Lieferadresse: ") + " · ".join(filter(None, [invoice.delivery_street, invoice.delivery_postcode + " " + invoice.delivery_city, invoice.delivery_country]))))
     story.append(Spacer(1, 14))
     rows = [[paragraph(x) for x in ["#", tr("Artikel / Leistung"), tr("Menge"), tr("Netto/Stk."), tr("Netto"), tr("USt.")]]]
-    for line in invoice.lines:
-        rows.append([paragraph(line.identifier), paragraph(line.description), paragraph(line.quantity + tr(" Stk."), right),
+    tracking_style = ParagraphStyle("tracking",parent=normal,fontName=tracking_font(),fontSize=8.5,leading=11)
+    for index,line in enumerate(invoice.lines):
+        description = [paragraph(line.description)]
+        if index in tracking:
+            description.extend([Spacer(1,3),paragraph(tr("Sendungsnummer") + ": " + ", ".join(tracking[index]),tracking_style)])
+        rows.append([paragraph(line.identifier), description, paragraph(line.quantity + tr(" Stk."), right),
                      paragraph(price_label(line.net_price), right), paragraph(money_label(line.net_amount), right), paragraph(line.tax_rate + " %", right)])
     table = Table(rows, colWidths=[24, 210, 60, 91, 83, 52], repeatRows=1)
     table.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#edf2f6")),
@@ -213,7 +222,7 @@ def render_invoice(invoice, language="de"):
     story.extend([totals, Spacer(1, 15)])
     if invoice.tax_case == "Innergemeinschaftliche Lieferung":
         story.append(paragraph(tr("Steuerfreie innergemeinschaftliche Lieferung: ") + invoice.tax_reason))
-    for label, value in [(tr("Zahlungsart"), tr(PAYMENT_LABELS.get(invoice.payment_code, ""))), (tr("Fällig am"), invoice.due_date),
+    for label, value in [(tr("Zahlung"), tr(payment_caption(invoice))), (tr("Fällig am"), invoice.due_date),
                          ("IBAN", invoice.iban if invoice.payment_code in ("30", "58") else ""),
                          (tr("Verkäufer-USt-ID"), invoice.seller.vat_id), (tr("Verkäufer-Steuernummer"), invoice.seller.tax_id),
                          (tr("Käufer-USt-ID"), invoice.buyer.vat_id), (tr("Verkäuferadresse elektronisch"), invoice.seller.endpoint),
@@ -221,22 +230,27 @@ def render_invoice(invoice, language="de"):
                          (tr("Telefon"), invoice.contact_phone), (tr("Kontakt-E-Mail"), invoice.contact_email)]:
         if value:
             story.append(paragraph(label + ": " + value))
-    if invoice.remarks:
-        story.extend([Spacer(1, 12), paragraph(tr("Bemerkungen")), paragraph(invoice.remarks)])
+    if remarks:
+        story.extend([Spacer(1, 12), KeepTogether([paragraph(tr("Kundenbemerkungen")), paragraph(remarks)])])
     def page_footer(canvas_obj, document):
+        from pdf_layout import draw_invoice_footer
         canvas_obj.saveState()
-        canvas_obj.setFont("IdoRegular", 8)
-        canvas_obj.setFillColor(colors.HexColor("#657686"))
-        canvas_obj.drawString(38, 24, invoice.seller.name + " | " + invoice.number)
-        canvas_obj.drawRightString(557, 24, tr("Seite ") + str(document.page))
+        draw_invoice_footer(canvas_obj,invoice,tr("Seite ")+str(document.page),font="IdoRegular")
         canvas_obj.restoreState()
     def factory(*args, **kwargs):
         kwargs.update(initialFontName="IdoRegular", initialFontSize=9)
         return canvas.Canvas(*args, **kwargs)
-    document = SimpleDocTemplate(stream, pagesize=(595.28, 841.89), leftMargin=38, rightMargin=37, topMargin=34, bottomMargin=42,
+    document = SimpleDocTemplate(stream, pagesize=(595.28, 841.89), leftMargin=38, rightMargin=37, topMargin=34, bottomMargin=125,
                                  title=tr("Rechnung ") + invoice.number, author=invoice.seller.name)
     document.build(story, onFirstPage=page_footer, onLaterPages=page_footer, canvasmaker=factory)
-    writer = PdfWriter(clone_from=PdfReader(BytesIO(stream.getvalue())))
+    return with_pdfa_profile(stream.getvalue())
+
+
+def with_pdfa_profile(data):
+    from pypdf import PdfReader, PdfWriter
+    from pypdf.generic import ArrayObject, DictionaryObject, NameObject, NumberObject, TextStringObject, DecodedStreamObject
+    from PIL import ImageCms
+    writer = PdfWriter(clone_from=PdfReader(BytesIO(data)))
     profile = DecodedStreamObject()
     profile.set_data(ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB")).tobytes())
     profile[NameObject("/N")] = NumberObject(3)

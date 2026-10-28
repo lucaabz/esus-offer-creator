@@ -79,7 +79,12 @@ app.whenReady().then(async () => {
     await win.webContents.executeJavaScript(
       `document.querySelector('#btnOffersInvoices').click()`,
     );
-    await wait(1200);
+    for (let i = 0; i < 50; i++) {
+      if (await win.webContents.executeJavaScript(
+        `Boolean(document.querySelector('[data-field="seller.endpoint"]')?.value)`,
+      )) break;
+      await wait(200);
+    }
     assert.equal(
       await win.webContents.executeJavaScript(
         `document.querySelector('[data-field="seller.endpoint"]').value`,
@@ -109,7 +114,12 @@ app.whenReady().then(async () => {
         `document.querySelector('[data-field="number"]').value.length>0`,
       ),
     );
-    await wait(1000);
+    for (let i = 0; i < 50; i++) {
+      if (await win.webContents.executeJavaScript(
+        `document.querySelector('[data-field="buyer_reference"]').getAttribute('aria-required') === 'true'`,
+      )) break;
+      await wait(200);
+    }
     const polishLayout = await win.webContents.executeJavaScript(`(() => {
       const source = document.querySelector('[data-field="payment_text"]');
       const method = document.querySelector('[data-field="payment_code"]');
@@ -203,7 +213,12 @@ app.whenReady().then(async () => {
     await win.webContents.executeJavaScript(
       `{ document.querySelector('#invoiceTab-general').click();const target=document.querySelector('[data-invoice-control=invoiceTarget]');target.value='ZUGFeRD EN16931';target.dispatchEvent(new Event('change')); }`,
     );
-    await wait(1000);
+    for (let i = 0; i < 50; i++) {
+      if (await win.webContents.executeJavaScript(
+        `document.querySelector('[data-field="buyer_reference"]').getAttribute('aria-required') === 'false'`,
+      )) break;
+      await wait(200);
+    }
     assert.equal(
       await win.webContents.executeJavaScript(
         `document.querySelector('[data-field="buyer_reference"]').getAttribute('aria-required')`,
@@ -219,7 +234,12 @@ app.whenReady().then(async () => {
     await win.webContents.executeJavaScript(
       `{ const target=document.querySelector('[data-invoice-control=invoiceTarget]');target.value='XRechnung';target.dispatchEvent(new Event('change')); }`,
     );
-    await wait(1000);
+    for (let i = 0; i < 50; i++) {
+      if (await win.webContents.executeJavaScript(
+        `document.querySelector('[data-field="buyer_reference"]').getAttribute('aria-required') === 'true'`,
+      )) break;
+      await wait(200);
+    }
     await win.webContents.executeJavaScript(
       `document.querySelector('#appToast')?.remove()`,
     );
@@ -295,6 +315,7 @@ app.whenReady().then(async () => {
       )
         break;
     }
+    console.log("Export status:", await win.webContents.executeJavaScript(`document.querySelector('#invoiceStatus').textContent`));
     assert.ok(
       await win.webContents.executeJavaScript(
         `document.querySelector('#invoiceStatus').textContent.includes('Zapisano eksport')`,
@@ -352,6 +373,61 @@ app.whenReady().then(async () => {
     console.log(
       "PASS: original offer save/open/duplicate/delete; invoice controls and edits do not affect offer persistence",
     );
+    const offerPdfs = await win.webContents.executeJavaScript(String.raw`(async()=>{
+      const {store}=await import('./app/state/store.js');
+      const {generatePdf}=await import('./app/export/pdf.js');
+      const ids=['offerLang','offerCurrency','offerVat','shippingAmount','shippingModeGross','custName','custAddr','custNip','estimateDays'];
+      const fields=ids.map(id=>{const el=document.getElementById(id);return {el,value:el.value,checked:el.checked};});
+      const previousItems=store.items, previousSave=window.jspdf.jsPDF.API.save;
+      const files=[];
+      window.jspdf.jsPDF.API.save=function(){files.push(this.output('datauristring').split(',')[1]);};
+      try{
+        store.items=[{desc:'Versand-Regression: Artikel',qty:2,net:100,discount:0}];
+        document.getElementById('offerCurrency').value='EUR';
+        document.getElementById('offerVat').value='19';
+        document.getElementById('custName').value='Fensterkunde GmbH';
+        document.getElementById('custAddr').value='Teststraße 1\n12345 Berlin';
+        document.getElementById('custNip').value='DE123456789';
+        document.getElementById('estimateDays').value='2';
+        const cases=[['de','0',false],['de','10',false],['de','11.90',true],['pl','10',false],['en','10',false],['hu','10',false]];
+        for(const [lang,amount,gross] of cases){
+          document.getElementById('offerLang').value=lang;
+          document.getElementById('shippingAmount').value=amount;
+          document.getElementById('shippingModeGross').checked=gross;
+          await generatePdf();
+        }
+        return files;
+      }finally{
+        store.items=previousItems;window.jspdf.jsPDF.API.save=previousSave;
+        for(const {el,value,checked} of fields){el.value=value;el.checked=checked;}
+      }
+    })()`);
+    assert.equal(offerPdfs.length,6);
+    const {execFileSync}=require('node:child_process');
+    const python=app.isPackaged ? path.join(process.resourcesPath,'python/python.exe') : path.join(__dirname,'../runtime/python/python.exe');
+    const texts=offerPdfs.map(pdf=>execFileSync(python,['-I','-X','utf8','-c',"import sys;from io import BytesIO;from pypdf import PdfReader;print('\\n'.join(p.extract_text() for p in PdfReader(BytesIO(sys.stdin.buffer.read())).pages))"],{input:Buffer.from(pdf,'base64'),encoding:'utf8'}));
+    assert.ok(!texts[0].includes('Versandkosten'));
+    assert.match(texts[0],/238[,.]00/);
+    for(const text of texts.slice(1))assert.match(text,/249[,.]90/,'Shipping must be included in the offer total');
+    assert.ok(texts[1].includes('Versandkosten') && texts[2].includes('Versandkosten'));
+    assert.ok(texts[1].includes('USt-IdNr.') && !texts[1].includes('NIP:'));
+    assert.ok(texts[1].includes('Waldsiedlung Fichtendamm 4'));
+    assert.ok(texts[1].includes('Voraussichtliche Lieferzeit: 2 Werktage.'));
+    console.log('PASS: PDF shipping position and totals (net/gross/free), all offer languages, German tax label and delivery text');
+    const orderDraft={orderId:"customer_login",orderSerialNumber:54321,
+      clientResult:{clientBillingAddress:{clientFirm:"API Kunde",clientStreet:"Teststraße 1",clientZipCode:"10317",clientCity:"Berlin",clientCountryId:"DE",clientEmail:"kunde@example.org"}},
+      productsResults:[{productName:"Original",documentNames:{de:"Deutscher Artikel"},productQuantity:"3",productOrderPriceNet:"100",productOrderPrice:"119",productVat:"19"}],
+      orderDetails:{payments:{orderCurrency:{currencyId:"EUR",orderProductsCost:"357",orderDeliveryCost:0,orderPayformCost:0,orderInsuranceCost:0}}}};
+    await win.webContents.executeJavaScript(`document.querySelector('#btnOffersInvoices').click();{const field=document.querySelector('[data-field="number"]');field.value='PRESERVE-ME';field.dispatchEvent(new Event('input',{bubbles:true}));}window.confirm=()=>false;void 0`);
+    const transfer = async () => win.webContents.executeJavaScript(`new Promise(resolve=>window.dispatchEvent(new CustomEvent('esus:invoice-from-order',{detail:{order:${JSON.stringify(orderDraft)},language:'de',purchaseOrder:'PO-42',resolve}})))`);
+    assert.equal(await transfer(),false);
+    assert.equal(await win.webContents.executeJavaScript(`document.querySelector('[data-field="number"]').value`),'PRESERVE-ME');
+    await win.webContents.executeJavaScript('window.confirm=()=>true;void 0');
+    assert.equal(await transfer(),true);
+    const transferred=await win.webContents.executeJavaScript(`({number:document.querySelector('[data-field="number"]').value,source:document.querySelector('[data-field="source_order"]').value,net:document.querySelector('[data-field="net_total"]').value,po:document.querySelector('[data-field="purchase_order"]').value,pdfImport:!!document.querySelector('[data-action="import"]'),imageHidden:document.querySelector('#invoicePreviewImage').hidden,open:!document.querySelector('#invoiceWorkspace').hidden})`);
+    assert.deepEqual(transferred,{number:'',source:'54321',net:'300.00',po:'PO-42',pdfImport:true,imageHidden:true,open:true});
+    fs.writeFileSync(path.join(__dirname,'invoice-order-ui.png'),(await win.webContents.capturePage()).toPNG());
+    console.log('PASS: IdoSell draft handoff, dirty cancel/confirm, decimal amounts, shared editor and preserved PDF importer');
     app.exit(0);
   } catch (error) {
     console.error(error);

@@ -1,6 +1,6 @@
 {
   "name": "esus-quote-generator",
-  "version": "1.7.4",
+  "version": "1.8.0",
   "main": "main.js",
   "private": true,
   "scripts": {
@@ -57,6 +57,21 @@
       {
         "from": "runtime/python",
         "to": "python"
+      },
+      {
+        "from": "renderer/assets/document-design.json",
+        "to": "invoice/document-design.json"
+      },
+      {
+        "from": "renderer/assets/fonts",
+        "to": "invoice/fonts",
+        "filter": [
+          "Inter-*"
+        ]
+      },
+      {
+        "from": "renderer/assets/logo_1_big.png",
+        "to": "invoice/logo_1_big.png"
       }
     ]
   }

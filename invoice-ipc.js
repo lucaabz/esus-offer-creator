@@ -88,6 +88,7 @@ ipcMain.handle("invoice:request", async (event, input) => {
     !input ||
     ![
       "defaults",
+      "importOrder",
       "import",
       "requirements",
       "saveSeller",

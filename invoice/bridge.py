@@ -47,6 +47,11 @@ def dispatch(request):
         for key in ("iban", "contact_name", "contact_phone", "contact_email"):
             setattr(invoice, key, seller_profile[key])
         return invoice.to_dict()
+    if action == "importOrder":
+        from order_import import order_invoice
+        invoice = order_invoice(request["order"],request.get("language","de"),profile(data_dir))
+        invoice.purchase_order = str(request.get("purchaseOrder") or "").strip()
+        return invoice.to_dict()
     if action == "import":
         invoice = import_pdf(request["path"])
         apply_profile(invoice, profile(data_dir))

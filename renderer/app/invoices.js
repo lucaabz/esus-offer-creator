@@ -19,17 +19,17 @@ const partyFields = [
 ];
 const generalFields = [
   ["number", "Numer faktury"],
-  ["issue_date", "Data wystawienia (z daty dostawy)"],
+  ["issue_date", "Data wystawienia"],
   ["delivery_date", "Data dostawy"],
-  ["sales_date", "Data sprzedaży z PDF"],
+  ["sales_date", "Data sprzedaży (źródło)"],
   ["due_date", "Termin płatności"],
   ["currency", "Waluta"],
   ["buyer_reference", "Referencja nabywcy / Leitweg-ID"],
   ["purchase_order", "Numer zamówienia nabywcy"],
   ["supplier_number", "Numer dostawcy u nabywcy"],
-  ["source_order", "Zamówienie IdoSell z PDF"],
+  ["source_order", "Zamówienie IdoSell"],
   ["iban", "IBAN"],
-  ["payment_text", "Informacja o płatności z PDF"],
+  ["payment_text", "Informacja o płatności (źródło)"],
   ["payment_code", "Metoda płatności"],
   ["net_total", "Kwota netto faktury"],
   ["tax_total", "VAT faktury"],
@@ -47,7 +47,7 @@ const lineFields = [
   ["tax_rate", "Stawka VAT (%)"],
   ["tax_amount", "VAT pozycji"],
   ["gross_amount", "Wartość brutto pozycji"],
-  ["source_gross_price", "Cena brutto z PDF"],
+  ["source_gross_price", "Cena brutto (źródło)"],
 ];
 const taxFields = [
   ["tax_case", "Sposób opodatkowania"],
@@ -56,7 +56,7 @@ const taxFields = [
   ["delivery_street", "Ulica"],
   ["delivery_postcode", "Kod pocztowy"],
   ["delivery_city", "Miejscowość"],
-  ["remarks", "Uwagi klienta z PDF"],
+  ["remarks", "Uwagi klienta"],
 ];
 let invoice;
 let page = 0;
@@ -70,7 +70,7 @@ root.hidden = true;
 root.lang = "pl";
 root.innerHTML = `
 <div class="invoice-heading">
-  <div><h1>E-faktury</h1><p>Zaimportuj PDF z IdoSell, sprawdź dane i wyeksportuj zweryfikowaną e-fakturę.</p></div>
+  <div><h1>E-faktury</h1><p>Zaimportuj PDF lub zamówienie IdoSell, sprawdź dane i wyeksportuj zweryfikowaną e-fakturę.</p></div>
   <div class="invoice-output">
     <label>Format eksportu<select data-invoice-control="invoiceTarget"><option>XRechnung</option><option>ZUGFeRD EN16931</option></select></label>
     <label>Język dokumentu PDF<select data-invoice-control="invoiceLanguage"><option value="de">Niemiecki</option><option value="en">Angielski</option><option value="pl">Polski</option><option value="hu">Węgierski</option></select></label>
@@ -567,9 +567,18 @@ function renderReport(result = null) {
 async function preview() {
   if (!invoice?.source_file) {
     $("invoicePreviewImage").hidden = true;
+    $("invoicePreviewImage").removeAttribute("src");
     $("invoicePreviewHint").hidden = false;
+    $("invoicePreviewHint").textContent = invoice?.source_order
+      ? `Źródło: zamówienie IdoSell ${invoice.source_order}. Brak oryginalnego PDF. Sprawdź pozycje i sumy z zamówieniem.`
+      : "Zaimportuj PDF, aby porównać dane z oryginalną fakturą.";
+    $("invoicePage").textContent = invoice?.source_order ? "Zamówienie IdoSell" : "Oryginalny PDF";
+    $("invoicePrev").disabled = true;
+    $("invoiceNext").disabled = true;
+    openSource.disabled = true;
     return;
   }
+  openSource.disabled = false;
   const source = invoice.source_sha256;
   const result = await window.invoiceAPI.request({
     ...payload("preview"),
@@ -732,14 +741,46 @@ invoiceBack.addEventListener("click", () => {
   invoiceEntry.focus();
 });
 async function initialize() {
+  if (busy) return;
+  busy = true;
   try {
     invoice = await window.invoiceAPI.request({ action: "defaults" });
     fill();
     status("Dane sprzedawcy są uzupełnione. Zaimportuj fakturę IdoSell.");
   } catch (error) {
     status(errorText(error), true);
-  }
+  } finally { busy = false; }
 }
+// Additional source; PDF importing and existing exports remain unchanged.
+window.addEventListener("esus:invoice-from-order", async (event) => {
+  const request = event.detail;
+  if (!request || typeof request.resolve !== "function") return;
+  if (busy || !confirmReplace()) { request.resolve(false); return; }
+  busy = true;
+  let accepted = false;
+  try {
+    const result = await window.invoiceAPI.request({action:"importOrder",order:request.order,
+      language:request.language,purchaseOrder:request.purchaseOrder || ""});
+    invoice = result;
+    revision++;
+    dirty = true;
+    page = 0;
+    $("invoiceLanguage").value = ["de","en","pl","hu"].includes(request.language) ? request.language : "de";
+    fill();
+    activate("general");
+    await preview();
+    root.hidden = false;
+    document.body.classList.add("invoice-active");
+    status("Przejęto zamówienie IdoSell. Uzupełnij numer i daty faktury, potwierdź VAT i płatność, następnie sprawdź dokument.");
+    accepted = true;
+    invoiceBack.focus();
+  } catch (error) {
+    window.alert(errorText(error));
+  } finally {
+    busy = false;
+    request.resolve(accepted);
+  }
+});
 window.addEventListener("beforeunload", (event) => {
   if (dirty) {
     event.preventDefault();

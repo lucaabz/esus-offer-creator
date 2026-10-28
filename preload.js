@@ -41,6 +41,7 @@ contextBridge.exposeInMainWorld("esusAPI", {
   idosellSearchProducts: (query, preferredCurrency) =>
     ipcRenderer.invoke("idosell:searchProducts", { query, preferredCurrency }),
   idosellOrdersList: (payload) => ipcRenderer.invoke("idosell:ordersList", payload),
+  idosellProductTexts: (payload) => ipcRenderer.invoke("idosell:productTexts", payload),
   idosellOrderGet: (payload) => ipcRenderer.invoke("idosell:orderGet", payload),
 
   // Optional: file operations already implemented in main.js

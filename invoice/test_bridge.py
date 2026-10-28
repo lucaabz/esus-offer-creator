@@ -41,7 +41,7 @@ class BridgeTests(unittest.TestCase):
                 reader = PdfReader(target)
                 self.assertEqual(expected, list(reader.attachments["factur-x.xml"])[0])
                 text = "\n".join(page.extract_text() for page in reader.pages)
-                self.assertIn(title, text)
+                self.assertIn(title, text.upper())
                 self.assertIn(inv.lines[0].description, " ".join(text.split()))
                 self.assertNotIn("\x00", text)
 

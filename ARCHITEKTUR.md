@@ -1,148 +1,140 @@
-# ESUS App 1.7.4 – lokale Integration
+# Architecture – ESUS IT Offer Generator 1.8.0
 
-## Ausgangspunkt und Erhaltung von 1.7.3
+## Baseline and integration boundaries
 
-Upstream: musicshaggy/esus-offer-creator, Commit `3e90d434289af73a0a31518789a0fd7b819f3e59`.
-Der lokale Git-Arbeitsstand baut auf diesem Commit auf. Es wurde nichts auf GitHub veröffentlicht.
-Die Geschäftslogik, Vorlagen und Datenformate der ursprünglichen App bleiben erhalten.
-Die einzigen Einbindungspunkte sind ein Require in `main.js`, eine zusätzliche API in
-`preload.js` und je ein zusätzlicher CSS-/Module-Verweis in `renderer/index.html`.
-Paketversion, Paketressourcen und Git-Ignore-Regeln wurden ergänzt.
-Der vorhandene Release-Aufruf erhält zusätzlich zwei Zeilen zur Vorbereitung der
-Rechnungsressourcen. Seine Versions-, Git-, Veröffentlichungs- und Updateabläufe bleiben erhalten.
+The application builds on version 1.7.3 of musicshaggy/esus-offer-creator
+(commit `3e90d434289af73a0a31518789a0fd7b819f3e59`). The existing offer, order,
+reporting and settings modules remain the foundation of the app. Version 1.8.0
+extends the previously integrated local e-invoicing module with shared document
+layouts, localized product names and direct order imports.
 
-`tests/parity.test.cjs` vergleicht sämtliche Originaldateien gegen die Git-Objekte
-des oben festgeschriebenen Commits. Eine zweite Referenzkopie ist dafür nicht nötig.
-Nur diese dokumentierten Ergänzungen und Paketangaben dürfen abweichen.
-Dieser Vergleich sichert Quellcode-Erhaltung; er ersetzt keine vollständige manuelle
-Abnahme jedes ursprünglichen Bedienablaufs mit echten IdoSell-Zugangsdaten.
+Changes to existing files cover explicit integration points, document rendering,
+shipping lines and additional document metadata. `tests/parity.test.cjs` compares
+original files against the pinned Git commit and explicitly accounts for approved
+changes. This checks source preservation; it does not guarantee every possible
+original workflow.
 
-## Komponenten
+## Electron, user interface and storage
 
-- `main.js`, `preload.js`, `renderer/app/main.js`: bestehende Electron-App mit ihren
-  unveränderten Angebots-, Bestell-, Export-, Berichts- und Einstellungsmodulen.
-- `renderer/app/invoices.js`: zusätzlicher, eigenständiger Rechnungsbereich. Beide
-  Bereiche bleiben im DOM; Navigation baut vorhandene Formulare nicht neu auf.
-  „E-faktury“ steht neben „Zamówienia IAI“ in der Angebotsübersicht.
-  „Powrót do ofert“ führt zurück. In Berichts-/Bestellunteransichten wird der
-  Menüeintrag ausgeblendet. Die zusätzliche Navigation in der Titelleiste entfällt.
-  Die gesamte Bedienoberfläche dieses Moduls ist standardmäßig polnisch. Die
-  Dokumentensprache ist davon unabhängig; interne Steuerfallwerte und alle
-  Quelltexte werden unverändert gespeichert. `invoice-ui-pl.js` enthält die
-  Anzeigeübersetzung von Pflichtmarkierungen, Steuerfallnamen und Import-/Prüfhinweisen.
-  Offizielle Validator-Kommunikate bleiben unverändert in aufklappbaren technischen Details.
-  Felder sind thematisch gruppiert; zusätzliche optionale Referenzen und Quellangaben
-  stehen am Ende. Zahlungsinformation aus PDF und Zahlungsmittelauswahl stehen direkt
-  untereinander. Pflichtfelder werden fett und mit „Wymagane“ hervorgehoben; ihre
-  Kennzeichnung passt sich weiter an Exportformat und Rechnungsdaten an.
-  Leere Pflichtfelder werden zusätzlich rot markiert und mit einem Text-Hinweis
-  sowie `aria-invalid` versehen. Die Markierung verschwindet sofort beim Ausfüllen.
-  Die Walidacja-Seite zeigt leere Pflichtfelder als anklickbare Liste, einen
-  getrennten Prüfstatus, getrennte Fehler-/Warnlisten und Importhinweise als Liste.
-  Importhinweise sind ausdrücklich kein Prüfergebnis. Nach Änderungen oder einem
-  Formatwechsel wird das vorherige Prüfergebnis nicht mehr als aktuell angezeigt.
-- `renderer/css/50_invoices.css`: nur die neue Navigation und den Rechnungsbereich
-  betreffende Gestaltung; verwendet die bestehenden ESUS-Farbvariablen. Kein Win95.
-- `invoice-ipc.js`: Dateidialoge und lokale Prozesssteuerung. Feste erlaubte Aktionen,
-  JSON über stdin/stdout, Zeit- und Antwortgrößenbegrenzung. Kein HTTP-Server.
-- `invoice/bridge.py`: Adapter ohne Tkinter. Ruft die bestehenden Fachmodule auf.
-- `invoice/model.py`, `importer.py`, `checks.py`, `field_rules.py`, `xrechnung.py`,
-  `validator.py`, `address_lookup.py`: übernommen aus IdoRechnung.
-- `invoice/zugferd.py`: gleiche XML-Abbildung und Prüfungen; PDF-Beschriftungen haben
-  eine zusätzliche Sprachoption. NotoSans aus dem Offer Creator deckt PL/HU-Zeichen ab.
-- `invoice/invoice_i18n.py`: sichtbare PDF-Beschriftungen DE/EN/PL/HU. Eingetragene
-  Artikeltexte, Bemerkungen, Verkäuferidentität, Beträge und XML werden nicht übersetzt.
-- `invoice/validation/`: festgeschriebene offizielle XRechnung-Prüfdateien mit Manifest.
-  `.gitattributes` deaktiviert ausschließlich dort die Zeilenenden-Konvertierung,
-  damit die offiziellen SHA256-Prüfsummen auch nach einem Git-Checkout stimmen.
-- `invoice/vendor/`: lokale Bibliotheken einschließlich Factur-X und SaxonC.
-- `invoice/tools/`: veraPDF und Java für PDF/A-Prüfung.
-- `runtime/python/`: private Python-3.12-Laufzeit und weitere benötigte Pakete.
+- `main.js`: existing application, IdoSell requests, settings and PDF printing.
+- `preload.js`: IPC interfaces between the renderer and main process.
+- `renderer/app/ui/iaiOrders.js`: order selection, document preview, editable
+  document metadata, language selection and handoff to the e-invoicing workspace.
+- `renderer/app/invoices.js`: Polish e-invoicing interface for PDF and order
+  imports, review, corrections, validation and export. Other application areas
+  remain mounted when switching modules.
+- `invoice-ipc.js`: file dialogs, private Python processes and protection against
+  losing unsaved invoice changes when closing the application.
 
-## Datenfluss
+Additional document fields use the existing user settings under
+`modulePrefs.iaiOrders.documentDrafts`; no separate database is introduced.
+User settings, credentials, imported invoices and generated documents do not belong
+in Git.
 
-Electron-Dateiauswahl → Python-PDF-Import → formatneutrales Invoice-JSON → Kontrolle
-in Electron → Vorabprüfung → offizielle XML-Prüfung → XML oder geprüftes ZUGFeRD-PDF.
+## Document layouts
 
-Eine ZUGFeRD-Prüfung vor dem Export prüft das XML. Erst beim Export werden das PDF,
-die unveränderte eingebettete XML und PDF/A-3b geprüft. Fehlgeschlagene Prüfungen
-geben keinen neuen Export frei. Die bisherigen Prüfberichte werden weiter geschrieben.
-Quell-PDF-Vorschauen werden lokal als PNG gerendert und über IPC übertragen.
+`renderer/assets/document-design.json` defines shared colors, page dimensions,
+address positioning and the German GmbH company profile. Inter Regular/Bold and
+their OFL license are bundled in `renderer/assets/fonts`; no runtime font download
+is required.
 
-Die Schnittstelle startet pro Anfrage einen Hintergrundprozess. Für den derzeitigen
-Einzelrechnungsbetrieb hält dies den Zustand einfach und isoliert. Python wird mit `-I`
-gestartet; der Adapter fügt ausschließlich seine eigenen Module und vendor zum Suchpfad hinzu.
+`renderer/app/config/documentDesign.js` exposes these values to JavaScript.
+`offer-layout.js` renders German offers with jsPDF/AutoTable.
+`document-layout.js` styles German IAI invoices, order confirmations and delivery
+notes for the existing HTML-to-PDF flow. `invoice/pdf_layout.py` renders the German
+visible ZUGFeRD invoice using ReportLab. These adapters follow the existing PDF
+engines and share design data. Installer resources provide the same design and
+font files to Python.
 
-## Lokale Daten
+German documents use the GmbH profile. Existing company profiles for other
+languages are retained. Foreign-language offers continue to use the existing
+renderer, with the authorized footer and shipping adjustments.
 
-Der ursprüngliche Datenordner bleibt `%LOCALAPPDATA%\ESUS-Quote`. Das neue Verkäuferprofil
-liegt darin separat unter `invoices/seller.json`. Angebote und bestehende Einstellungen
-behalten ihre ursprünglichen Speicherorte. Rechnungsentwürfe werden auf ausdrücklichen
-Speicherklick als JSON gespeichert. Original-PDFs werden nicht verändert oder mitkopiert.
+German documents share blue accents, normal-weight address, metadata and item
+text, and dark bold final totals. Quantities are centered and prices aligned
+right; numeric column widths account for formatted values. Repeated table headers
+and reserved footer space support multiple pages. The address area targets
+standard DIN-long/C5 window envelopes. This is not a general DIN certification.
 
-Testläufe verwenden `tests/desktop-data`; sie greifen nicht auf die echte Angebotsdatenbank zu.
-Anonymisierte Test-PDFs liegen unter `tests/pdf-samples` und sind von Git ausgeschlossen.
+Offer shipping is a calculated line item. Alternative products remain excluded
+from the main total. Delivery notes contain goods only, use a plain document title,
+and show the IdoSell order number plus an optional customer purchase-order number.
+Delivery dates and conditions are not repeated. Editable document fields supplement
+missing API values.
 
-Die bestehenden Angebotsmodule werden nicht dupliziert. Neue Rechnungs-Auswahlfelder
-verwenden `data-invoice-control` statt IDs: Die ursprüngliche Angebots-Persistenz sammelt
-Formularfelder mit IDs global ein. So gelangen Rechnungswerte nicht in Angebotsdateien.
-Der Pakettest bestätigt unveränderte gespeicherte Angebote nach Rechnungsbearbeitung.
-Die ungenutzte frühere Tkinter-Oberfläche (`app.py`, `win95_theme.py`, `instant_tabs.py`)
-wurde aus dem neuen Rechnungsmodul und dem Windows-Paket entfernt.
+Technical references and electronic endpoints remain in ZUGFeRD XML but are not
+repeated in the German PDF. The buyer VAT ID appears directly with the address.
+Recognized tracking numbers appear below an unambiguously identified shipping
+line; remaining customer notes are displayed separately. Original notes remain
+in XML. The visible payment caption uses “Kauf auf Rechnung” for the corresponding
+“Handelskredit” payment case. PDF unit prices show two decimals, while XML unit
+prices retain their precision.
 
-## Paket und Veröffentlichung
+## Product text by document language
 
-`Start.cmd` startet bevorzugt das lokale Windows-Paket unter `dist/win-unpacked`.
-`npm start` startet die Entwicklungsversion. Installierte Electron-Abhängigkeiten und
-private Python-Laufzeit sind in dieser lokalen Lieferung vorhanden.
-`scripts/prepare-invoice.ps1` richtet Python 3.12.10, Temurin Java 17.0.20.1,
-veraPDF 1.30.3 und alle Python-Abhängigkeiten lokal ein. Downloads werden mit SHA256
-geprüft; sämtliche direkten und indirekten Python-Abhängigkeiten sind in den vorhandenen
-Requirements festgeschrieben. Pip wird nur beim Aufbau aus einem geprüften Wheel gestartet,
-nicht im ausgelieferten Python installiert. Das eingebettete Python sucht ausschließlich
-in seiner Standardbibliothek und `invoice/vendor`. Vorbereitung erfolgt vor `npm start`,
-`npm run pack`, `npm run dist` sowie im bisherigen Release-Skript.
-Der Setup-Fingerabdruck unter `runtime/` verhindert unnötige erneute Downloads und Installationen.
-electron-builder kopiert Python und Rechnungsressourcen als `extraResources`, außerhalb
-des ASAR-Archivs. Der reproduzierbare Ressourcenaufbau ist implementiert und mit einer
-frischen Quellkopie geprüft. Ein vollständiger regulärer Installer-Test und eine gesonderte
-Fork-Veröffentlichung/Updatequelle bleiben eigenständige Release-Schritte.
-Die bisherige GitHub-Updatekonfiguration wurde erhalten; sie zeigt auf das Originalprojekt.
-Der Versionswert 1.7.4 bezeichnet diesen lokalen Entwicklungsstand, keine erfolgte Veröffentlichung.
-`runtime/`, `invoice/vendor/` und `invoice/tools/` sind von Git ausgeschlossen.
-Ein frischer Clone enthält diese Ressourcen deshalb nicht. `npm run invoice:prepare`
-beschafft sie automatisch. Nur der Entwickler benötigt Node/npm und Internet; der fertige
-Installer liefert Python, Bibliotheken und Java/veraPDF für den lokalen Betrieb mit.
-Im lokalen Paket liegen die JavaScript-Dateien unter `resources/app`, weil der automatische
-ASAR-/Ressourcenaufbau innerhalb der abgeschotteten Umgebung unterbrochen wurde. Die
-Produktionsabhängigkeiten wurden aus dem erzeugten Archiv übernommen, aktuelle neue
-Module ergänzt und die vollständigen Rechnungs-/Python-Ressourcen separat kopiert.
-Ein Test mit genau diesen Paketdateien und Ressourcen hat Import, Vorschau, Navigation
-und beide Exporte bestätigt. Für den GitHub-Release bleibt ein regulärer Installer-Build erforderlich.
+`background/idosellProductTexts.js` uses existing API helpers for read-only calls
+to `products/products/search`. It requests `lang_data`, passes the document language
+through `productSearchingLangId`, and selects the corresponding entry from
+`productDescriptionsLangData`. Supported languages are DE, PL, EN and HU.
 
-Die vorhandene Rechnung unterstützt weiterhin EUR, den bestätigten IdoSell-PDF-Aufbau,
-19% Deutschland und innergemeinschaftliche Warenlieferung. Die Dokumentensprache
-erweitert weder Währungen noch Steuerfälle. Keine zusätzlichen IdoSell-API-Funktionen.
+Requests accept up to 100 product IDs. A five-minute cache is scoped by shop,
+language and product. Additional names are stored under `documentNames`; original
+order names, identifiers and prices are preserved. Missing translations or API
+errors fall back to the original name with a warning. Preview and export use the
+same document language.
 
-Bekannte Originalverhalten bleiben erhalten: interner Angebots-Excel-Export mit 23%,
-sprachabhängige Firmenfußzeilen im Angebotsbereich, deaktivierte Bestellanlage und Fragenworker.
+## Two sources, one e-invoicing workflow
 
-## Verifikation
+`invoice/bridge.py` routes seller-profile, PDF-import, order-import, requirements,
+validation and export actions. `invoice/model.py` remains the shared invoice model.
+Monetary arithmetic uses Decimal, with decimal strings passed between processes.
 
-- `node --test tests/parity.test.cjs`: Erhaltung der Originaldateien.
-- `runtime/python/python.exe -m unittest discover -s invoice -p "test_*.py" -v`:
-  Rechnungsregeln, XML-Validierung, blockierte Exporte, Profilpersistenz, isolierter
-  Python-Prozess, vier PDF-Sprachen mit identischer XML und PDF/A-Prüfung.
-- `node_modules/electron/dist/electron.exe tests/smoke-app`: gemeinsame
-  Oberfläche, Preload/API, Verkäuferdaten, Beispielimport, Vorschau und erhaltene Daten
-  beim Bereichswechsel; Screenshots zur visuellen Kontrolle.
-  Der abgeschottete Codex-Testlauf benötigt zusätzlich `--no-sandbox --disable-gpu`.
-  Der normale Start für Anwender verwendet diese Testoptionen nicht.
+1. PDF import: the existing importer reads digital IdoSell invoices. The original
+   PDF remains available for comparison.
+2. Order import: an action in the IAI order dialog opens the same invoice workspace.
+   `invoice/order_import.py` maps billing details, items, order prices, language,
+   currency and control totals. Replacing an existing draft requires confirmation.
+   This source has no original PDF preview.
 
-## Schließen mit ungespeicherten Rechnungsänderungen
+An order import creates a reviewable draft, not an issued invoice. Order and
+invoice numbers stay separate. Invoice number, actual issue/delivery dates and
+unverified payment details must be completed or confirmed. Customer purchase-order
+references are not interpreted as Leitweg IDs. Fee tax rates are not guessed;
+discount, rounding and total discrepancies produce notes rather than silent
+balancing. Zero tax is not automatically treated as an intra-community supply.
 
-Der Renderer blockiert `beforeunload` nur bei ungespeicherten Änderungen.
-`invoice-ipc.js` behandelt dazu Electron `will-prevent-unload` mit einem nativen
-Bestätigungsdialog. „Weiter bearbeiten“ behält das Fenster und die Eingaben;
-„Änderungen verwerfen und schließen“ hebt die Blockierung auf. Ohne Änderungen
-schließt der vorhandene X-Button unmittelbar. `tests/close-app` prüft alle drei Fälle.
+Both sources use the existing checks and exporters. The existing scope for EUR,
+German 19% VAT and reviewed intra-community supplies is not silently extended to
+other tax cases.
+
+## XML, PDF/A and official validation
+
+The existing XRechnung exporter produces XML. `invoice/zugferd.py` generates CII XML
+and a PDF/A-3 invoice with embedded XML. Supplier identifiers are serialized as a
+single identifier; existing payment text can be included with the payment means.
+Unit codes such as C62 are structured codes rather than visible product labels.
+
+Validation uses pinned official XRechnung/CII resources and veraPDF for PDF/A.
+`invoice/validation/manifest.json` and `.gitattributes` protect resource bytes.
+Valid structure does not replace the user's confirmation of actual invoice data.
+
+## Development, packaging and publishing
+
+```powershell
+npm.cmd ci
+npm.cmd test
+npm.cmd start
+npm.cmd run dist -- --win nsis --x64 --publish never
+```
+
+`scripts/prepare-invoice.ps1`, invoked through existing npm lifecycle hooks,
+prepares pinned private Python/Java runtimes and invoice resources. End users
+install the Windows setup executable and do not need a Node/Python development
+environment.
+
+Application version: 1.8.0. Existing dependency versions are retained. The automatic
+update source in `package.json` still points to the original repository,
+`musicshaggy/esus-offer-creator`. Pushing or merging the fork does not distribute
+an installer or change an installed executable. A separate fork release/update
+channel would require an explicit decision. Installer binaries belong in GitHub
+release assets, not source commits.
