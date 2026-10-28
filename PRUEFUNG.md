@@ -1,3 +1,14 @@
+# Release 2.1.0
+
+This release versions the reviewed integration without changing its document or
+invoice functionality. Source publishing configuration remains upstream-oriented;
+the fork installer uses a build-only override for the fork update channel.
+
+The release installer is rebuilt from the versioned source, then checked using the
+Node package comparison and packaged Electron integration test. Earlier 2.0.0
+integration results below remain historical evidence for the same functional
+source; the final release artifact hashes identify the distributed binaries.
+
 # Upstream integration verification
 
 Date: 2026-10-28. Branch: `codex/integrate-upstream-2.0`.

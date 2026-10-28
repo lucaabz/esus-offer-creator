@@ -163,7 +163,7 @@ test("Original 2.0.0 files match upstream except documented German and invoice h
 });
 test("Existing dependency versions, scripts and update configuration are preserved", () => {
   const expected = JSON.parse(original.get("package.json"));
-  expected.version = "2.0.0";
+  expected.version = "2.1.0";
   expected.scripts.test = "node --test tests/*.test.cjs";
   expected.scripts["invoice:prepare"] = "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-invoice.ps1";
   for (const hook of ["prestart", "prepack", "predist"]) expected.scripts[hook] = "npm run invoice:prepare";
@@ -184,8 +184,8 @@ test("Existing dependency versions, scripts and update configuration are preserv
     expected,
   );
   const lock = JSON.parse(original.get("package-lock.json"));
-  lock.version = "2.0.0";
-  lock.packages[""].version = "2.0.0";
+  lock.version = "2.1.0";
+  lock.packages[""].version = "2.1.0";
   assert.deepEqual(
     JSON.parse(fs.readFileSync(path.join(appRoot, "package-lock.json"))),
     lock,

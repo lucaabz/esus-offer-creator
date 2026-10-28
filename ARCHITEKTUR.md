@@ -1,11 +1,11 @@
-# Architecture – ESUS IT Offer Generator: upstream 2.0.0 integration
+# Architecture – ESUS IT Offer Generator 2.1.0
 
 ## Baseline and integration boundaries
 
 This integration combines the reviewed fork state (`00542c0`, application 1.8.0)
 with the author's 2.0.0 master (`ad4742ef0b1921b6ea31c055705d62640e682c46`).
-The integration branch is `codex/integrate-upstream-2.0`. The manifest adopts the
-upstream 2.0.0 version; this is an integration baseline, not a published release.
+The integration branch is `codex/integrate-upstream-2.0`. The release version is 2.1.0, combining upstream 2.0.0 with the reviewed German
+document and e-invoicing extensions.
 
 The author's new sidebar, offer editor, IAI-ID product search, PM reports, charts,
 settings and classic/modern offer templates are imported directly from upstream.
@@ -138,7 +138,7 @@ prepares pinned private Python/Java runtimes and invoice resources. End users
 install the Windows setup executable and do not need a Node/Python development
 environment.
 
-Integration manifest version: 2.0.0 (upstream baseline; no release published). Existing dependency versions are retained. The automatic
+Release manifest version: 2.1.0. Existing dependency versions are retained. The automatic
 update source in `package.json` still points to the original repository,
 `musicshaggy/esus-offer-creator`. Pushing or merging the fork does not distribute
 an installer or change an installed executable. A separate fork release/update
@@ -165,3 +165,27 @@ The upstream classic offer totals summarize goods and list shipping separately i
 the conditions; the modern template includes shipping in its final amount. German
 offers retain the reviewed shipping line and inclusive totals. These differences
 are deliberate preservation of upstream behavior, not a common recalculation.
+
+## Fork release packaging
+
+The source `package.json` retains the original author's publishing configuration.
+Fork binaries override only the build-time publishing target, so their bundled
+`app-update.yml` points to `lucaabz/esus-offer-creator`. This avoids publishing to
+upstream and keeps the source suitable for an upstream contribution.
+
+To reproduce the fork installer in PowerShell after preparing dependencies:
+
+```powershell
+New-Item -ItemType Directory -Force runtime/setup | Out-Null
+$forkBuild = (Get-Content package.json -Raw | ConvertFrom-Json).build
+$forkBuild.publish = @(@{provider='github'; owner='lucaabz'; repo='esus-offer-creator'; releaseType='release'})
+$forkBuild | ConvertTo-Json -Depth 30 | Set-Content -Encoding utf8 runtime/setup/fork-release-config.json
+npm.cmd run dist -- --config runtime/setup/fork-release-config.json --win nsis --x64 --publish never
+```
+
+Use a pull request to merge the tested release branch into the fork's master.
+Create the GitHub release as a draft at the exact merged commit, upload the setup
+EXE, its blockmap, `latest.yml` and SHA256 checksums, then publish the completed
+release. Binaries are release assets, not Git source files. Existing installations
+that still use the original update target need the fork installer manually once.
+The upstream pull request is submitted manually by the maintainer of this fork.
