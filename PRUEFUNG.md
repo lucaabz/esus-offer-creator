@@ -128,3 +128,11 @@ Source commit: a599a70. Windows x64 setup, version 2.0.0.
 SHA256: 92CC52F250F4F9D3EE17D6DCF7C292FCA35FBAF984B7D465BB5E33F7BFD73407
 Local test artifact only; not published as a GitHub release.
 
+
+## Release 2.1.0 artifact verification
+
+Built from source commit 2741b81. All 7 Node tests passed with no skips, including
+the source/package comparison. Packaged Electron integration passed. Installer
+SHA512 matches latest.yml; bundled update configuration targets the fork.
+Installer SHA256: 9971674EE768105BE9C53CB09CD2DF4897A6A8DA2F5B368F00CF169947AA1056
+
